@@ -1,14 +1,40 @@
 namespace Shared
 
-type Status =
+open System
+
+type ApplicationStatus =
   | Offline
   | Running
+
+type OnlineApiInfo =
+  { OnlineOpenApiDefinition : Uri
+    ServiceUri : Uri
+    ServicePort : int }
+
+type ApiStatus =
+  | Offline
+  | Running of OnlineApiInfo
+
+type Api =
+  { Status : ApiStatus
+    OfflineOpenApiDefinition : Uri
+  }
+
+type OrnApplication =
+  { Name : string
+    Logo : Uri
+    Description : string
+    Status : ApplicationStatus
+    Iri : Uri
+    HelmChartUri : Uri
+    Apis : Api list
+    }
 
 type Application =
   { Name : string
     Logo : string
     Description : string
-    Status : Status }
+    Status : ApplicationStatus }
 
 module Route =
   /// Defines how routes are generated on server and mapped from client
