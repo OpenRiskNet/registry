@@ -41,6 +41,9 @@ let init () : Model * Cmd<Msg> =
       (Error >> Init)
   model, cmd
 
+let icon iconclasses =
+  i [ ClassName iconclasses; Style [MarginRight "0.5em"] ] []
+
 let update (msg : Msg) (model : Model) : Model * Cmd<Msg> =
   let model' =
     match msg with
@@ -61,6 +64,12 @@ let view (model : Model) (dispatch : Msg -> unit) =
                       [ h5 [ ClassName "mt-0" ]
                            [ str app.Name ]
                         str app.Description
+                        ul [ Style [ Margin "1em"; ListStyleType "none"] ]
+                          [ li [ Style [Display "inline-block"] ] [ icon "fas fa-book fa-2x" ]
+                            li [ Style [Display "inline-block"] ] [ icon "fas fa-code fa-2x" ]
+                          ]
+
+
                       ]
                   ]
         )
