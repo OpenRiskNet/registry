@@ -20,6 +20,20 @@ type Api =
     OfflineOpenApiDefinition : Uri
   }
 
+type OntologySearchTerm =
+  { Text : string
+    OntologyTerm : string option
+    TermSuggestions : string list option
+  }
+
+type ApiSqarqlQueryResult =
+  { Endpoint : Uri }
+
+type SearchStatus =
+  | NotStarted
+  | Loading
+  | Results of ApiSqarqlQueryResult list
+
 type OrnApplication =
   { Name : string
     Logo : Uri

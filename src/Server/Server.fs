@@ -17,7 +17,7 @@ let config =
       homeFolder = Some clientPath
       bindings = [ HttpBinding.create HTTP (IPAddress.Parse "0.0.0.0") port ] }
 
-let getInitState () : Async<Application list> = async { return [ { Name = "Squonk" ; Logo = "https://squonk.it/assets/Squonk_Vector.svg"; Description = "Squonk provides an easy to use, browser based environment that allows you to execute complex computational workflows and analyse the results."; Status = Running } ] }
+let getInitState () : Async<Application list> = async { return [ { Name = "Squonk" ; Logo = "https://squonk.it/assets/Squonk_Vector.svg"; Description = "Squonk provides an easy to use, browser based environment that allows you to execute complex computational workflows and analyse the results."; Status = ApplicationStatus.Offline } ] }
 
 let init : WebPart =
   let registryProcotol =

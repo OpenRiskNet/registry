@@ -1,0 +1,14 @@
+[
+  {
+    "name": "ChemiDConvert",
+    "logo": "https://chemidconvert.cloud.douglasconnect.com/logo",
+    "description": "Utility to create renderings of molecules and cross-convert structural identifiers like SMILES, Inchi etc.",
+    "iri": "https://github.com/douglasconnect/chemidconvert",
+    "helmChartUri": "https://storage.googleapis.com/douglasconnect-public/helm-charts/chemidconvert",
+    "apis": [
+      {
+        "openapiDefinition": "https://github.com/DouglasConnect/ChemIdConvert/raw/master/swagger.yaml"
+      }
+    ]
+  }
+]
