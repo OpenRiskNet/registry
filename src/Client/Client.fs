@@ -8,16 +8,35 @@ open Fable.Helpers.React.Props
 open Fable.PowerPack.Fetch
 
 open Shared
+open System.Collections.Specialized
+
+
+type OntologySearchTerm =
+  { Text : string
+    OntologyTerm : string option
+    TermSuggestions : string list
+  }
+
+type SearchStatus =
+  | NotStarted
+  | Loading
+  | Results of ServiceSqarqlQueryResult list
+
+type ServiceList =
+  | ServicesLoading
+  | ServicesError of string
+  | Services of Service list
 
 type Model =
-  { Applications : Application list
-    Errors : string list
+  { Services : ServiceList
+    InputSearchTerm : OntologySearchTerm
+    OutputSearchTerm : OntologySearchTerm
   }
 
 type Msg =
 | Increment
 | Decrement
-| Init of Result<Application list, exn>
+| Init of Result<Service list, exn>
 
 module Server =
 
@@ -31,14 +50,25 @@ module Server =
     }
 
 let init () : Model * Cmd<Msg> =
-  let model = { Applications = []
-                Errors = [] }
+  let model =
+    { Services = ServicesLoading
+      InputSearchTerm =
+        { Text = ""
+          OntologyTerm = None
+          TermSuggestions = [] }
+      OutputSearchTerm =
+        { Text = ""
+          OntologyTerm = None
+          TermSuggestions = [] }
+    }
+
   let cmd =
     Cmd.ofAsync
-      Server.api.getInitModel
+      Server.api.getCurrentServices
       ()
       (Ok >> Init)
       (Error >> Init)
+
   model, cmd
 
 let icon iconclasses =
@@ -47,29 +77,27 @@ let icon iconclasses =
 let update (msg : Msg) (model : Model) : Model * Cmd<Msg> =
   let model' =
     match msg with
-    | Init (Ok x) -> { model with Applications = x }
-    | Init (Error err) -> { model with Errors = err.ToString() :: model.Errors }
+    | Init (Ok services) -> { model with Services = Services services }
+    | Init (Error err) -> { model with Services = ServicesError (err.ToString()) }
   model', Cmd.none
 
 let view (model : Model) (dispatch : Msg -> unit) =
-  let applications =
-    match model.Applications with
-    | [] -> [ p [] [str "Loading ..."] ]
-    | apps ->
-        apps
+  let serviceFragments =
+    match model.Services with
+    | ServicesLoading -> [ p [] [str "Loading ..."] ]
+    | ServicesError err -> [ p [] [str ("Error loading services: " + err)] ]
+    | Services services ->
+        services
         |> List.map (fun app ->
               div [ ClassName "media" ; Style [ Border "1px solid lightgrey" ; Padding "1em" ] ]
-                  [ img [ Alt (sprintf "%s logo" app.Name); ClassName "mr-3 img-thumbnail"; Style [ Width "10em" ]; Src app.Logo ]
-                    div [ ClassName "media-body" ]
+                  [ div [ ClassName "media-body" ]
                       [ h5 [ ClassName "mt-0" ]
                            [ str app.Name ]
-                        str app.Description
+                        str app.Name
                         ul [ Style [ Margin "1em"; ListStyleType "none"] ]
                           [ li [ Style [Display "inline-block"] ] [ icon "fas fa-book fa-2x" ]
                             li [ Style [Display "inline-block"] ] [ icon "fas fa-code fa-2x" ]
                           ]
-
-
                       ]
                   ]
         )
@@ -78,7 +106,7 @@ let view (model : Model) (dispatch : Msg -> unit) =
   div []
     [ h3  [] [ str "Active services" ]
       ul []
-         applications
+         serviceFragments
     ]
 
 

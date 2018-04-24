@@ -2,53 +2,42 @@ namespace Shared
 
 open System
 
-type ApplicationStatus =
-  | Offline
-  | Running
+type Url = string
 
-type OnlineApiInfo =
-  { OnlineOpenApiDefinition : Uri
-    ServiceUri : Uri
+// Application
+// type ApplicationStatus =
+//   | Offline
+//   | Running
+
+// type ApplicationType =
+//   | Deployable of status:  ApplicationStatus * helmChartUri : Url
+//   | NonDeyloyable of publicServiceUri : Url
+
+// type OrnApplication =
+//   { Name : string
+//     Logo : Url
+//     Description : string
+//     ApplicationType : ApplicationType
+//     Id : Url
+//     }
+
+// type DynamicServiceInformationSource =
+//   { DynamicServiceSource : string
+//     LastPoll : DateTime
+//   }
+
+// Service
+type Service =
+  { OnlineOpenApiDefinition : Url
+    Name : string // extracted from the openapi definition
+    ServiceUri : Url
     ServicePort : int }
 
-type ApiStatus =
-  | Offline
-  | Running of OnlineApiInfo
+// Search
+type ServiceSqarqlQueryResult =
+  { Name : String
+    Endpoint : Url }
 
-type Api =
-  { Status : ApiStatus
-    OfflineOpenApiDefinition : Uri
-  }
-
-type OntologySearchTerm =
-  { Text : string
-    OntologyTerm : string option
-    TermSuggestions : string list option
-  }
-
-type ApiSqarqlQueryResult =
-  { Endpoint : Uri }
-
-type SearchStatus =
-  | NotStarted
-  | Loading
-  | Results of ApiSqarqlQueryResult list
-
-type OrnApplication =
-  { Name : string
-    Logo : Uri
-    Description : string
-    Status : ApplicationStatus
-    Iri : Uri
-    HelmChartUri : Uri
-    Apis : Api list
-    }
-
-type Application =
-  { Name : string
-    Logo : string
-    Description : string
-    Status : ApplicationStatus }
 
 module Route =
   /// Defines how routes are generated on server and mapped from client
@@ -59,4 +48,4 @@ module Route =
 /// Every record field must have the type : 'a -> Async<'b> where 'a can also be `unit`
 /// Add more such fields, implement them on the server and they be directly available on client
 type IRegistryProtocol =
-  { getInitModel : unit -> Async<Application list> }
+  { getCurrentServices : unit -> Async<Service list> }
