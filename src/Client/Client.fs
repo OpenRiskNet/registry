@@ -9,6 +9,7 @@ open Fable.PowerPack.Fetch
 
 open Shared
 open System.Collections.Specialized
+open Fable.PowerPack
 
 
 type OntologySearchTerm =
@@ -34,9 +35,8 @@ type Model =
   }
 
 type Msg =
-| Increment
-| Decrement
-| Init of Result<Service list, exn>
+| Refresh of Result<Service list, exn>
+| Awake
 
 module Server =
 
@@ -48,6 +48,20 @@ module Server =
     Proxy.remoting<IRegistryProtocol> {
       use_route_builder Route.builder
     }
+
+let refresh =
+    Cmd.ofAsync
+      Server.api.getCurrentServices
+      ()
+      (Ok >> Refresh)
+      (Error >> Refresh)
+
+let sleep =
+    Cmd.ofPromise
+      (fun _ -> Promise.sleep 2000)
+      ()
+      (fun _ -> Awake)
+      (fun _ -> Awake)
 
 let init () : Model * Cmd<Msg> =
   let model =
@@ -62,24 +76,19 @@ let init () : Model * Cmd<Msg> =
           TermSuggestions = [] }
     }
 
-  let cmd =
-    Cmd.ofAsync
-      Server.api.getCurrentServices
-      ()
-      (Ok >> Init)
-      (Error >> Init)
-
-  model, cmd
+  model, refresh
 
 let icon iconclasses =
   i [ ClassName iconclasses; Style [MarginRight "0.5em"] ] []
 
 let update (msg : Msg) (model : Model) : Model * Cmd<Msg> =
-  let model' =
+  let model', cmd =
     match msg with
-    | Init (Ok services) -> { model with Services = Services services }
-    | Init (Error err) -> { model with Services = ServicesError (err.ToString()) }
-  model', Cmd.none
+    | Refresh (Ok services) -> { model with Services = Services services }, sleep
+    | Refresh (Error err) -> { model with Services = ServicesError (err.ToString()) }, sleep
+    | Awake -> model, refresh
+
+  model', cmd
 
 let view (model : Model) (dispatch : Msg -> unit) =
   let serviceFragments =

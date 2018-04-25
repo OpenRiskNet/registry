@@ -16,13 +16,22 @@ let config =
       homeFolder = Some clientPath
       bindings = [ HttpBinding.create HTTP (IPAddress.Parse "0.0.0.0") port ] }
 
+let randomGenerator = new System.Random()
+
 let getCurrentServices () : Async<Service list> =
   async {
+    let randomRepeat =
+      randomGenerator.Next() % 3
+
+    let item =
+      { OnlineOpenApiDefinition = "http://chemidconvert:8080/swagger.json"
+        Name = "ChemiDConvert"
+        ServiceUri = "http://chemidconvert/"
+        ServicePort = 8080 }
+
     let dummyServices =
-        [{ OnlineOpenApiDefinition = "http://chemidconvert:8080/swagger.json"
-           Name = "ChemiDConvert"
-           ServiceUri = "http://chemidconvert/"
-           ServicePort = 8080 } ]
+      List.replicate randomRepeat item
+
     return dummyServices
   }
 

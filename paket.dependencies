@@ -5,6 +5,7 @@ group Server
   nuget FSharp.Core
   nuget Suave
   nuget Fable.Remoting.Suave ~> 2.6
+  nuget KubernetesClient
 
   clitool Microsoft.DotNet.Watcher.Tools
 
@@ -24,3 +25,7 @@ group Build
   source https://api.nuget.org/v3/index.json
 
   nuget FAKE
+
+group Script
+  source https://api.nuget.org/v3/index.json
+  nuget KubernetesClient
