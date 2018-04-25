@@ -6,6 +6,7 @@ open Suave.Operators
 
 open Fable.Remoting.Server
 open Fable.Remoting.Suave
+open k8s
 
 open Shared
 let clientPath = Path.Combine("..","Client") |> Path.GetFullPath
@@ -16,24 +17,42 @@ let config =
       homeFolder = Some clientPath
       bindings = [ HttpBinding.create HTTP (IPAddress.Parse "0.0.0.0") port ] }
 
-let randomGenerator = new System.Random()
+let k8sconfig = new KubernetesClientConfiguration(Host = "http://127.0.0.1:8080")
+
+let client = new Kubernetes(k8sconfig)
+
+let getServices() =
+  async {
+    let! result = Async.AwaitTask(client.ListNamespacedServiceWithHttpMessagesAsync("default"))
+
+    return
+      result.Body.Items
+      |> Seq.map (fun service ->
+        let labels =
+            if isNull service.Metadata.Labels then
+                ""
+            else
+                service.Metadata.Labels |> Seq.map (fun kvpair -> sprintf "%s: %s" kvpair.Key kvpair.Value) |> String.concat ", "
+        let firstPort =
+          service.Spec.Ports
+          |> Seq.tryHead
+          |> Option.map (fun port -> port.Port)
+          |> Option.defaultValue 80
+
+        { OnlineOpenApiDefinition = "http://chemidconvert:8080/swagger.json"
+          Name = service.Metadata.Name
+          ServiceUri = sprintf "http://%s" service.Metadata.Name
+          ServicePort = firstPort }
+        )
+      |> Seq.toList
+  }
+
+
+
 
 let getCurrentServices () : Async<Service list> =
-  async {
-    let randomRepeat =
-      randomGenerator.Next() % 3
+  getServices()
 
-    let item =
-      { OnlineOpenApiDefinition = "http://chemidconvert:8080/swagger.json"
-        Name = "ChemiDConvert"
-        ServiceUri = "http://chemidconvert/"
-        ServicePort = 8080 }
-
-    let dummyServices =
-      List.replicate randomRepeat item
-
-    return dummyServices
-  }
 
 let init : WebPart =
   let registryProcotol =

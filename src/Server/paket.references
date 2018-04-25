@@ -2,7 +2,7 @@ group Server
   FSharp.Core
 
   Suave
-
+  KubernetesClient
   Fable.Remoting.Suave
 
   Microsoft.DotNet.Watcher.Tools
