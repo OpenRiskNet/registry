@@ -28,7 +28,7 @@ let k8sconfig =
   if k8sApiUrl <> "" then
     new KubernetesClientConfiguration(Host = k8sApiUrl)
   else
-    KubernetesClientConfiguration.BuildConfigFromConfigFile();
+    KubernetesClientConfiguration.InClusterConfig();
 
 
 let client = new Kubernetes(k8sconfig)
