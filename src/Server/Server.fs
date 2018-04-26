@@ -12,12 +12,24 @@ open Shared
 let clientPath = Path.Combine("..","Client") |> Path.GetFullPath
 let port = 8085us
 
+let getEnvironmentVariableOrDefault name defaultValue =
+  match System.Environment.GetEnvironmentVariable name with
+  | null -> defaultValue
+  | str -> str
+
+let k8sApiUrl = getEnvironmentVariableOrDefault "KUBERNETES_API_ENDPOINT" ""
+
 let config =
   { defaultConfig with
       homeFolder = Some clientPath
       bindings = [ HttpBinding.create HTTP (IPAddress.Parse "0.0.0.0") port ] }
 
-let k8sconfig = new KubernetesClientConfiguration(Host = "http://127.0.0.1:8080")
+let k8sconfig =
+  if k8sApiUrl <> "" then
+    new KubernetesClientConfiguration(Host = k8sApiUrl)
+  else
+    KubernetesClientConfiguration.BuildConfigFromConfigFile();
+
 
 let client = new Kubernetes(k8sconfig)
 

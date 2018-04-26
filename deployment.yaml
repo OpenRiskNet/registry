@@ -1,0 +1,3 @@
+container-name: orn/registry
+registry: eu.gcr.io/douglasconnect-docker/
+deployment-name: orn-registry
