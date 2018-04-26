@@ -1,4 +1,6 @@
-﻿open System.IO
+﻿module Orn.Registry.Server
+
+open System.IO
 open System.Net
 
 open Suave
@@ -6,9 +8,10 @@ open Suave.Operators
 
 open Fable.Remoting.Server
 open Fable.Remoting.Suave
-open k8s
+open Orn.Registry.Kubernetes
 
 open Shared
+open System.Threading
 let clientPath = Path.Combine("..","Client") |> Path.GetFullPath
 let port = 8085us
 
@@ -17,53 +20,35 @@ let getEnvironmentVariableOrDefault name defaultValue =
   | null -> defaultValue
   | str -> str
 
-let k8sApiUrl = getEnvironmentVariableOrDefault "KUBERNETES_API_ENDPOINT" ""
+let k8sApiUrl = @"http://localhost:8001" //getEnvironmentVariableOrDefault "KUBERNETES_API_ENDPOINT" ""
 
 let config =
   { defaultConfig with
       homeFolder = Some clientPath
       bindings = [ HttpBinding.create HTTP (IPAddress.Parse "0.0.0.0") port ] }
 
-let k8sconfig =
-  if k8sApiUrl <> "" then
-    new KubernetesClientConfiguration(Host = k8sApiUrl)
-  else
-    KubernetesClientConfiguration.InClusterConfig();
+let cancelTokenSource = new CancellationTokenSource()
 
+let k8sUpdateAgent = UpdateAgent(k8sApiUrl, cancelTokenSource.Token)
 
-let client = new Kubernetes(k8sconfig)
+let refreshAgent : MailboxProcessor<Unit> = Agent.Start((fun agent ->
+  let rec sleepRefreshLoop() =
+    async {
+      do! Async.Sleep(2000)
+      k8sUpdateAgent.Agent.Post()
+      do! sleepRefreshLoop()
+    }
 
-let getServices() =
-  async {
-    let! result = Async.AwaitTask(client.ListNamespacedServiceWithHttpMessagesAsync("default"))
-
-    return
-      result.Body.Items
-      |> Seq.map (fun service ->
-        let labels =
-            if isNull service.Metadata.Labels then
-                ""
-            else
-                service.Metadata.Labels |> Seq.map (fun kvpair -> sprintf "%s: %s" kvpair.Key kvpair.Value) |> String.concat ", "
-        let firstPort =
-          service.Spec.Ports
-          |> Seq.tryHead
-          |> Option.map (fun port -> port.Port)
-          |> Option.defaultValue 80
-
-        { OnlineOpenApiDefinition = "http://chemidconvert:8080/swagger.json"
-          Name = service.Metadata.Name
-          ServiceUri = sprintf "http://%s" service.Metadata.Name
-          ServicePort = firstPort }
-        )
-      |> Seq.toList
-  }
-
-
-
+  sleepRefreshLoop()
+  ), cancelTokenSource.Token)
 
 let getCurrentServices () : Async<Service list> =
-  getServices()
+  async {
+    return
+      k8sUpdateAgent.Services
+      |> Set.toList
+      |> List.map (fun k8sService -> { Name = k8sService.Name; ServiceUri = sprintf "http://%s" k8sService.Name; ServicePorts = k8sService.Ports })
+  }
 
 
 let init : WebPart =

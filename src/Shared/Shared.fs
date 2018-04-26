@@ -28,10 +28,10 @@ type Url = string
 
 // Service
 type Service =
-  { OnlineOpenApiDefinition : Url
+  { //OnlineOpenApiDefinition : Url
     Name : string // extracted from the openapi definition
     ServiceUri : Url
-    ServicePort : int }
+    ServicePorts : int array }
 
 // Search
 type ServiceSqarqlQueryResult =
