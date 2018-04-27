@@ -13,6 +13,8 @@ open System.Text
 open OrnQueryTester.DereferencingVisitor
 open Orn.Registry.BasicTypes
 
+type OpenApiServiceInformation =
+  { Description : string }
 
 let DereferenceOpenApi (openapiDocument : Microsoft.OpenApi.Models.OpenApiDocument) : Microsoft.OpenApi.Models.OpenApiDocument =
   let visitor = DereferencingVisitor(openapiDocument.Components)
@@ -42,9 +44,11 @@ let TransformOpenApiToV3Dereferenced openApiString =
   |> Result.bind (fun openapi ->
       use writer = new StringWriter()
       let openapiWriter = OpenApiJsonWriter(writer)
+      // TODO: extract more useful information (endpoints? tags?)
+      let description = { Description = openapi.Info.Description }
       try
         openapi.SerializeAsV3 openapiWriter
-        Ok (OpenApiDereferenced (writer.ToString()))
+        Ok (description, OpenApiDereferenced (writer.ToString()))
       with
       | ex ->
         Error (ex.ToString())

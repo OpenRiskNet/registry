@@ -9,6 +9,8 @@ open Suave.Operators
 open Fable.Remoting.Server
 open Fable.Remoting.Suave
 open Orn.Registry.Kubernetes
+open Orn.Registry.BasicTypes
+open Orn.Registry.OpenApiProcessing
 
 open Shared
 open System.Threading
@@ -29,18 +31,30 @@ let config =
 
 let cancelTokenSource = new CancellationTokenSource()
 
+let openApiAgent = OpenApiAgent(cancelTokenSource.Token)
+
 let k8sUpdateAgent = UpdateAgent(k8sApiUrl, cancelTokenSource.Token)
+k8sUpdateAgent.ServiceAdded
+|> Event.add (openApiAgent.SendMessage << AddToIndex)
+k8sUpdateAgent.ServiceRemoved
+|> Event.add (openApiAgent.SendMessage << RemoveFromIndex)
+
 
 let refreshAgent : MailboxProcessor<Unit> = Agent.Start((fun agent ->
   let rec sleepRefreshLoop() =
     async {
       do! Async.Sleep(2000)
-      k8sUpdateAgent.Agent.Post()
+      k8sUpdateAgent.TriggerPull()
       do! sleepRefreshLoop()
     }
 
   sleepRefreshLoop()
   ), cancelTokenSource.Token)
+
+// TODO: Add giving back the indexed openrisknet servcies from openApiAgent as well
+//       Add frontend second list of openrisknet services with annotation as first list
+//       Annotate ChemIdConvert with corrent x-orn-@context
+//       Try if it works :)
 
 let getCurrentServices () : Async<Service list> =
   async {

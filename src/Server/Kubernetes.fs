@@ -29,6 +29,9 @@ type K8sService =
 
 
 type UpdateAgent(k8sApiUrl : string, cancelToken : CancellationToken) =
+  let serviceAdded = new Event<SwaggerUrl>()
+  let serviceRemoved = new Event<SwaggerUrl>()
+
   let k8sconfig =
     if k8sApiUrl <> "" then
       new KubernetesClientConfiguration(Host = k8sApiUrl)
@@ -77,14 +80,34 @@ type UpdateAgent(k8sApiUrl : string, cancelToken : CancellationToken) =
       let addedServices = currentServices - oldServices
       let removedServices = oldServices - currentServices
 
-      // TODO: notify swagger indexing agent of added/removed services
+      for service in addedServices do
+        let openRiskNetOpenApiUrl =
+          service.Labels
+          |> Map.tryFind "OpenRiskNetDefinition"
+        match openRiskNetOpenApiUrl with
+        | Some url ->
+            printfn "OpenRiskNet definition found for service %s" service.Name
+            serviceAdded.Trigger(SwaggerUrl url)
+        | None -> printfn "No openrisknet definition given for %s" service.Name
 
+      for service in removedServices do
+        let openRiskNetOpenApiUrl =
+          service.Labels
+          |> Map.tryFind "OpenRiskNetDefinition"
+        match openRiskNetOpenApiUrl with
+        | Some url -> serviceRemoved.Trigger(SwaggerUrl url)
+        | None -> ()
 
       return! AgentFunction(agent)
     }
 
   let agent = MailboxProcessor.Start(AgentFunction, cancelToken)
 
-  member this.Agent = agent
+  member this.TriggerPull() = agent.Post ()
 
   member this.Services = services
+
+
+  [<CLIEvent>]
+  member this.ServiceAdded = serviceAdded.Publish
+  member this.ServiceRemoved = serviceRemoved.Publish

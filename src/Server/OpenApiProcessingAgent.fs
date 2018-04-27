@@ -11,9 +11,14 @@ type Message =
   | AddToIndex of SwaggerUrl
   | RemoveFromIndex of SwaggerUrl
 
+type OpenRiskNetServiceInfo =
+  { TripleStore : VDS.RDF.TripleStore
+    OpenApiServiceInformation : OpenApiServiceInformation
+  }
+
 type TripleIndexingStatus =
   | InProgress
-  | Indexed of VDS.RDF.TripleStore
+  | Indexed of OpenRiskNetServiceInfo
   | Failed of string
 
 let updateMap key newval map =
@@ -39,6 +44,7 @@ type OpenApiAgent(cancelToken : CancellationToken) =
     async {
       let! message = agent.Receive()
       let (>>=) a b = Result.bind b a
+      let makeTuple a b = (a,b)
       match message with
       | AddToIndex (SwaggerUrl url) ->
           serviceMap <- serviceMap |> Map.add (SwaggerUrl url) InProgress
@@ -49,28 +55,31 @@ type OpenApiAgent(cancelToken : CancellationToken) =
                 openapistring
                 |> OpenApiRaw
                 |> TransformOpenApiToV3Dereferenced
-                >>= fixOrnJsonLdContext
-                >>= loadJsonLdIntoTripleStore
+                >>= (fun (description, openapi) -> fixOrnJsonLdContext openapi |?> makeTuple description )
+                >>= (fun (description, jsonld) -> loadJsonLdIntoTripleStore jsonld |?> makeTuple description)
             }
 
-          match result with
-          | Ok tripleStore ->
-              let updateMap = serviceMap |> updateMap (SwaggerUrl url) (Indexed tripleStore)
-              match updateMap with
-              | Some map ->
-                  serviceMap <- map
-              | None ->
-                  printfn "Update of map failed: %s" url
-          | Error msg ->
-              let updateMap = serviceMap |> updateMap (SwaggerUrl url) (Failed msg)
-              match updateMap with
-              | Some map ->
-                  serviceMap <- map
-              | None ->
-                  printfn "Update of map failed: %s" url
+          let updatedMap =
+            match result with
+            | Ok (serviceInformation, tripleStore) ->
+                serviceMap |> updateMap (SwaggerUrl url) (Indexed {TripleStore = tripleStore; OpenApiServiceInformation = serviceInformation})
+            | Error msg ->
+                serviceMap |> updateMap (SwaggerUrl url) (Failed msg)
+
+          match updatedMap with
+          | Some map ->
+              serviceMap <- map
+          | None ->
+              printfn "Update of map failed: %s" url
+
       | RemoveFromIndex url ->
           serviceMap <- serviceMap |> Map.remove url
+
       do! agentFunction(agent)
     }
 
   let agent = Agent.Start(agentFunction, cancelToken)
+
+  member this.ServiceMap = serviceMap
+
+  member this.SendMessage (msg : Message) = agent.Post msg
