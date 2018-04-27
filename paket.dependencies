@@ -4,8 +4,21 @@ group Server
 
   nuget FSharp.Core
   nuget Suave
+  nuget Chiron
   nuget Fable.Remoting.Suave ~> 2.6
   nuget KubernetesClient
+  nuget FSharp.Core
+  nuget dotNetRDF >= 2.0.0
+  nuget Newtonsoft.Json
+  nuget Suave >= 2.2.1
+  nuget System.Text.Encoding.CodePages >= 4.4.0
+  nuget VDS.Common >= 1.9.0
+  nuget Microsoft.OpenApi >= 1.0.0-beta015
+  nuget Microsoft.OpenApi.Readers >= 1.0.0-beta015
+  nuget Cvdm.ErrorHandling
+
+  git git@github.com:DouglasConnect/dc-library-fs.git master Packages: /nuget/
+  nuget DouglasConnect
 
   clitool Microsoft.DotNet.Watcher.Tools
 

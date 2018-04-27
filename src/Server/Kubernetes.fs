@@ -2,11 +2,9 @@ namespace Orn.Registry.Kubernetes
 
 open k8s
 open System.Threading
+open Orn.Registry.BasicTypes
 
-type Agent<'t> = MailboxProcessor<'t>
 
-type ServiceIdentifier = string
-type LabelKey = string
 
 [<CustomComparison; CustomEquality>]
 type K8sService =
@@ -56,7 +54,7 @@ type UpdateAgent(k8sApiUrl : string, cancelToken : CancellationToken) =
                   |> Seq.map (fun kvpair -> (kvpair.Key, kvpair.Value))
                   |> Map.ofSeq
 
-          { Id = service.Metadata.Name
+          { Id = ServiceIdentifier service.Metadata.Name
             Name = service.Metadata.Name
             Namespace = service.Metadata.NamespaceProperty
             Ports =

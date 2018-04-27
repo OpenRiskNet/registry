@@ -4,5 +4,15 @@ group Server
   Suave
   KubernetesClient
   Fable.Remoting.Suave
+  Chiron
 
   Microsoft.DotNet.Watcher.Tools
+
+  dotNetRDF
+  Newtonsoft.Json
+  System.Text.Encoding.CodePages
+  VDS.Common
+  Microsoft.OpenApi
+  Microsoft.OpenApi.Readers
+  Cvdm.ErrorHandling
+  DouglasConnect
