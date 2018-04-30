@@ -7,9 +7,10 @@ open Fable.Helpers.React
 open Fable.Helpers.React.Props
 open Fable.PowerPack.Fetch
 
-open Shared
+open Orn.Registry
 open System.Collections.Specialized
 open Fable.PowerPack
+open Orn.Registry.Shared
 
 
 type OntologySearchTerm =
@@ -21,12 +22,12 @@ type OntologySearchTerm =
 type SearchStatus =
   | NotStarted
   | Loading
-  | Results of ServiceSqarqlQueryResult list
+  | Results of Shared.ServiceSqarqlQueryResult list
 
 type ServiceList =
   | ServicesLoading
   | ServicesError of string
-  | Services of Service list
+  | Services of Shared.ActiveServices
 
 type Model =
   { Services : ServiceList
@@ -35,12 +36,12 @@ type Model =
   }
 
 type Msg =
-| Refresh of Result<Service list, exn>
+| Refresh of Result<Shared.ActiveServices, exn>
 | Awake
 
 module Server =
 
-  open Shared
+  open Orn.Registry.Shared
   open Fable.Remoting.Client
 
   /// A proxy you can use to talk to server directly
@@ -91,32 +92,51 @@ let update (msg : Msg) (model : Model) : Model * Cmd<Msg> =
   model', cmd
 
 let view (model : Model) (dispatch : Msg -> unit) =
-  let serviceFragments =
+  let serviceContent =
     match model.Services with
     | ServicesLoading -> [ p [] [str "Loading ..."] ]
     | ServicesError err -> [ p [] [str ("Error loading services: " + err)] ]
-    | Services services ->
-        services
-        |> List.map (fun app ->
-              div [ ClassName "media" ; Style [ Border "1px solid lightgrey" ; Padding "1em" ] ]
-                  [ div [ ClassName "media-body" ]
-                      [ h5 [ ClassName "mt-0" ]
-                           [ str app.Name ]
-                        str app.Name
-                        ul [ Style [ Margin "1em"; ListStyleType "none"] ]
-                          [ li [ Style [Display "inline-block"] ] [ icon "fas fa-book fa-2x" ]
-                            li [ Style [Display "inline-block"] ] [ icon "fas fa-code fa-2x" ]
-                          ]
-                      ]
-                  ]
-        )
+    | Services {PlainK8sServices = k8sServices; OrnServices = ornServices} ->
+        let plainK8sFragments, ornServiceFragments =
+          ( k8sServices
+          |> List.map (fun app ->
+                div [ ClassName "media" ; Style [ Border "1px solid lightgrey" ; Padding "1em" ] ]
+                    [ div [ ClassName "media-body" ]
+                        [ h5 [ ClassName "mt-0" ]
+                             [ str app.Name ]
+                          ul [ Style [ Margin "1em"; ListStyleType "none"] ]
+                            [ li [ Style [Display "inline-block"] ] [ icon "fas fa-book fa-2x" ]
+                              li [ Style [Display "inline-block"] ] [ icon "fas fa-code fa-2x" ]
+                            ]
+                        ]
+                    ]
+          ),
+          ornServices
+          |> List.map (fun app ->
+                div [ ClassName "media" ; Style [ Border "1px solid lightgrey" ; Padding "1em" ] ]
+                    [ div [ ClassName "media-body" ]
+                        [ h5 [ ClassName "mt-0" ]
+                             [ str app.K8sService.Name ]
+                          str app.OpenApiServiceInformation.Description
+                          ul [ ]
+                            ( app.OpenApiServiceInformation.Endpoints
+                              |> List.map (fun endpoint -> li [  ] [ str endpoint ]) )
+                        ]
+                    ]
+            )
+          )
+
+        [ h3  [] [ str "Active OpenRiskNet services" ]
+          ul []
+             ornServiceFragments
+          h3  [] [ str "Active OpenRiskNet services" ]
+          ul []
+             plainK8sFragments
+        ]
 
 
-  div []
-    [ h3  [] [ str "Active services" ]
-      ul []
-         serviceFragments
-    ]
+  div [] serviceContent
+
 
 
 #if DEBUG

@@ -23,7 +23,7 @@ let fixOrnJsonLdContext (OpenApiDereferenced openapiString) =
             |> Map.toSeq
             |> Seq.map (fun (key, value) ->
                            match key with
-                           | "x-onr-@context" -> ("@context", recursiveRenameContext value)
+                           | "x-orn-@context" -> ("@context", recursiveRenameContext value)
                            | _ -> (key, recursiveRenameContext value)
                            )
             |> Map.ofSeq
@@ -56,7 +56,7 @@ let loadJsonLdIntoTripleStore
     }
 
 
-let runQuery (store : TripleStore) (SparqlQuery sparqlQuery) =
+let runQuery (store : TripleStore) (Orn.Registry.Shared.SparqlQuery sparqlQuery) =
     let ds = InMemoryDataset(store, true);
 
     let processor = LeviathanQueryProcessor(ds);

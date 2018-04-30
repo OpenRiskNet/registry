@@ -1,9 +1,15 @@
-namespace Shared
+namespace Orn.Registry.Shared
 
 open System
 
 type Url = string
+type SparqlQuery = SparqlQuery of string
+type SwaggerUrl = SwaggerUrl of string
 
+module Constants =
+  [<Literal>]
+  let OpenRiskNetOpenApiLabel = "openrisknet-openapi"
+  let KubernetesNamespace = "openrisknet"
 // Application
 // type ApplicationStatus =
 //   | Offline
@@ -27,11 +33,25 @@ type Url = string
 //   }
 
 // Service
-type Service =
+type K8sService =
   { //OnlineOpenApiDefinition : Url
     Name : string // extracted from the openapi definition
-    ServiceUri : Url
     ServicePorts : int array }
+
+type OpenApiServiceInformation =
+  { Description : string
+    Endpoints : string list
+    SwaggerUrl : SwaggerUrl
+  }
+
+type OrnService =
+  { K8sService : K8sService
+    OpenApiServiceInformation : OpenApiServiceInformation
+  }
+
+type ActiveServices =
+  { PlainK8sServices : K8sService list
+    OrnServices : OrnService list }
 
 // Search
 type ServiceSqarqlQueryResult =
@@ -48,4 +68,4 @@ module Route =
 /// Every record field must have the type : 'a -> Async<'b> where 'a can also be `unit`
 /// Add more such fields, implement them on the server and they be directly available on client
 type IRegistryProtocol =
-  { getCurrentServices : unit -> Async<Service list> }
+  { getCurrentServices : unit -> Async<ActiveServices> }

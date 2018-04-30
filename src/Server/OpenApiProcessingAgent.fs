@@ -6,6 +6,7 @@ open DouglasConnect.Http
 open Cvdm.ErrorHandling
 open Orn.Registry.OpenApiTransformer
 open System.Threading
+open Orn.Registry.Shared
 
 type Message =
   | AddToIndex of SwaggerUrl
@@ -50,11 +51,13 @@ type OpenApiAgent(cancelToken : CancellationToken) =
           serviceMap <- serviceMap |> Map.add (SwaggerUrl url) InProgress
           let! result =
             asyncResult {
-              let! openapistring = SafeAsyncHttp.AsyncHttpTextResult url |> AsyncResult.mapError (fun err -> err.ToString())
+              printfn "Downloading openapi definition for %s" url
+              let! openapistring = SafeAsyncHttp.AsyncHttpTextResult(url, timeout=2000) |> AsyncResult.mapError (fun err -> err.ToString())
+              printfn "Downloading worked, processing..."
               return!
                 openapistring
                 |> OpenApiRaw
-                |> TransformOpenApiToV3Dereferenced
+                |> TransformOpenApiToV3Dereferenced (SwaggerUrl url)
                 >>= (fun (description, openapi) -> fixOrnJsonLdContext openapi |?> makeTuple description )
                 >>= (fun (description, jsonld) -> loadJsonLdIntoTripleStore jsonld |?> makeTuple description)
             }
@@ -62,6 +65,7 @@ type OpenApiAgent(cancelToken : CancellationToken) =
           let updatedMap =
             match result with
             | Ok (serviceInformation, tripleStore) ->
+                printfn "Loading json-ld into triple store worked for service %s" url
                 serviceMap |> updateMap (SwaggerUrl url) (Indexed {TripleStore = tripleStore; OpenApiServiceInformation = serviceInformation})
             | Error msg ->
                 serviceMap |> updateMap (SwaggerUrl url) (Failed msg)

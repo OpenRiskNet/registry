@@ -3,7 +3,7 @@ namespace Orn.Registry.Kubernetes
 open k8s
 open System.Threading
 open Orn.Registry.BasicTypes
-
+open Orn.Registry.Shared
 
 
 [<CustomComparison; CustomEquality>]
@@ -12,7 +12,7 @@ type K8sService =
     Name : string
     Namespace : string
     Ports : int array
-    Labels : Map<LabelKey, string>}
+    Annotations : Map<LabelKey, string>}
     interface System.IComparable<K8sService> with
       member this.CompareTo(other : K8sService) =
         System.StringComparer.Ordinal.Compare(this.Id, other.Id)
@@ -44,16 +44,16 @@ type UpdateAgent(k8sApiUrl : string, cancelToken : CancellationToken) =
 
   let GetCurrentServices() =
     async {
-      let! result = Async.AwaitTask(client.ListNamespacedServiceWithHttpMessagesAsync("default"))
+      let! result = Async.AwaitTask(client.ListServiceForAllNamespacesWithHttpMessagesAsync())
 
       return
         result.Body.Items
         |> Seq.map (fun service ->
           let labels =
-              if isNull service.Metadata.Labels then
+              if isNull service.Metadata.Annotations then
                   Map<LabelKey, string> []
               else
-                  service.Metadata.Labels
+                  service.Metadata.Annotations
                   |> Seq.map (fun kvpair -> (kvpair.Key, kvpair.Value))
                   |> Map.ofSeq
 
@@ -64,7 +64,7 @@ type UpdateAgent(k8sApiUrl : string, cancelToken : CancellationToken) =
               service.Spec.Ports
               |> Seq.map (fun port -> port.Port)
               |> Seq.toArray
-            Labels = labels
+            Annotations = labels
                }
           )
     }
@@ -75,15 +75,17 @@ type UpdateAgent(k8sApiUrl : string, cancelToken : CancellationToken) =
       let oldServices = services
       let! currentServicesSeq = GetCurrentServices()
       let currentServices = Set currentServicesSeq
+      printfn "We have %d old services, %d new services" oldServices.Count currentServices.Count
 
       services <- currentServices
       let addedServices = currentServices - oldServices
       let removedServices = oldServices - currentServices
+      printfn "This time, %d services added, %d services removed" addedServices.Count removedServices.Count
 
       for service in addedServices do
         let openRiskNetOpenApiUrl =
-          service.Labels
-          |> Map.tryFind "OpenRiskNetDefinition"
+          service.Annotations
+          |> Map.tryFind Constants.OpenRiskNetOpenApiLabel
         match openRiskNetOpenApiUrl with
         | Some url ->
             printfn "OpenRiskNet definition found for service %s" service.Name
@@ -92,8 +94,8 @@ type UpdateAgent(k8sApiUrl : string, cancelToken : CancellationToken) =
 
       for service in removedServices do
         let openRiskNetOpenApiUrl =
-          service.Labels
-          |> Map.tryFind "OpenRiskNetDefinition"
+          service.Annotations
+          |> Map.tryFind Constants.OpenRiskNetOpenApiLabel
         match openRiskNetOpenApiUrl with
         | Some url -> serviceRemoved.Trigger(SwaggerUrl url)
         | None -> ()
