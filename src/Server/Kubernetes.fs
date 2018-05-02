@@ -75,12 +75,10 @@ type UpdateAgent(k8sApiUrl : string, cancelToken : CancellationToken) =
       let oldServices = services
       let! currentServicesSeq = GetCurrentServices()
       let currentServices = Set currentServicesSeq
-      printfn "We have %d old services, %d new services" oldServices.Count currentServices.Count
 
       services <- currentServices
       let addedServices = currentServices - oldServices
       let removedServices = oldServices - currentServices
-      printfn "This time, %d services added, %d services removed" addedServices.Count removedServices.Count
 
       for service in addedServices do
         let openRiskNetOpenApiUrl =

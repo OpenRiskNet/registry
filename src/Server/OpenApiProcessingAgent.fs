@@ -68,6 +68,7 @@ type OpenApiAgent(cancelToken : CancellationToken) =
                 printfn "Loading json-ld into triple store worked for service %s" url
                 serviceMap |> updateMap (SwaggerUrl url) (Indexed {TripleStore = tripleStore; OpenApiServiceInformation = serviceInformation})
             | Error msg ->
+                printfn "Loading json-ld into triple store FAILED for service %s" url
                 serviceMap |> updateMap (SwaggerUrl url) (Failed msg)
 
           match updatedMap with
