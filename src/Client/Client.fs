@@ -104,10 +104,6 @@ let view (model : Model) (dispatch : Msg -> unit) =
                     [ div [ ClassName "media-body" ]
                         [ h5 [ ClassName "mt-0" ]
                              [ str app.Name ]
-                          ul [ Style [ Margin "1em"; ListStyleType "none"] ]
-                            [ li [ Style [Display "inline-block"] ] [ icon "fas fa-book fa-2x" ]
-                              li [ Style [Display "inline-block"] ] [ icon "fas fa-code fa-2x" ]
-                            ]
                         ]
                     ]
           ),
@@ -115,8 +111,10 @@ let view (model : Model) (dispatch : Msg -> unit) =
           |> List.map (fun app ->
                 div [ ClassName "media" ; Style [ Border "1px solid lightgrey" ; Padding "1em" ] ]
                     [ div [ ClassName "media-body" ]
-                        [ h5 [ ClassName "mt-0" ]
+                        [ h4 [ ClassName "mt-0" ]
                              [ str app.K8sService.Name ]
+                          h5 [ ClassName "mt-0" ]
+                             [ str "Endpoints:" ]
                           str app.OpenApiServiceInformation.Description
                         ]
                     ]
