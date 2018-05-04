@@ -1,3 +1,4 @@
-container-name: orn/registry
-registry: eu.gcr.io/douglasconnect-docker/
+container-name: orn-registry
+registry: douglasconnect
 deployment-name: orn-registry
+namespace: openrisknet

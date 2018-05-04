@@ -71,32 +71,35 @@ type UpdateAgent(k8sApiUrl : string, cancelToken : CancellationToken) =
 
   let rec AgentFunction (agent : Agent<Unit>) =
     async {
-      do! agent.Receive()
-      let oldServices = services
-      let! currentServicesSeq = GetCurrentServices()
-      let currentServices = Set currentServicesSeq
+      try
+        do! agent.Receive()
+        let oldServices = services
+        let! currentServicesSeq = GetCurrentServices()
+        let currentServices = Set currentServicesSeq
 
-      services <- currentServices
-      let addedServices = currentServices - oldServices
-      let removedServices = oldServices - currentServices
+        services <- currentServices
+        let addedServices = currentServices - oldServices
+        let removedServices = oldServices - currentServices
 
-      for service in addedServices do
-        let openRiskNetOpenApiUrl =
-          service.Annotations
-          |> Map.tryFind Constants.OpenRiskNetOpenApiLabel
-        match openRiskNetOpenApiUrl with
-        | Some url ->
-            printfn "OpenRiskNet definition found for service %s" service.Name
-            serviceAdded.Trigger(SwaggerUrl url)
-        | None -> printfn "No openrisknet definition given for %s" service.Name
+        for service in addedServices do
+          let openRiskNetOpenApiUrl =
+            service.Annotations
+            |> Map.tryFind Constants.OpenRiskNetOpenApiLabel
+          match openRiskNetOpenApiUrl with
+          | Some url ->
+              printfn "OpenRiskNet definition found for service %s" service.Name
+              serviceAdded.Trigger(SwaggerUrl url)
+          | None -> printfn "No openrisknet definition given for %s" service.Name
 
-      for service in removedServices do
-        let openRiskNetOpenApiUrl =
-          service.Annotations
-          |> Map.tryFind Constants.OpenRiskNetOpenApiLabel
-        match openRiskNetOpenApiUrl with
-        | Some url -> serviceRemoved.Trigger(SwaggerUrl url)
-        | None -> ()
+        for service in removedServices do
+          let openRiskNetOpenApiUrl =
+            service.Annotations
+            |> Map.tryFind Constants.OpenRiskNetOpenApiLabel
+          match openRiskNetOpenApiUrl with
+          | Some url -> serviceRemoved.Trigger(SwaggerUrl url)
+          | None -> ()
+      with
+      | ex -> printfn "Excption occured in Kubernetes Agent %O" ex
 
       return! AgentFunction(agent)
     }

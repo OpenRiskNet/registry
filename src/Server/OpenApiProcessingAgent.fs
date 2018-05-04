@@ -43,42 +43,45 @@ type OpenApiAgent(cancelToken : CancellationToken) =
 
   let rec agentFunction (agent : Agent<Message>) =
     async {
-      let! message = agent.Receive()
-      let (>>=) a b = Result.bind b a
-      let makeTuple a b = (a,b)
-      match message with
-      | AddToIndex (SwaggerUrl url) ->
-          serviceMap <- serviceMap |> Map.add (SwaggerUrl url) InProgress
-          let! result =
-            asyncResult {
-              printfn "Downloading openapi definition for %s" url
-              let! openapistring = SafeAsyncHttp.AsyncHttpTextResult(url, timeout=2000) |> AsyncResult.mapError (fun err -> err.ToString())
-              printfn "Downloading worked, processing..."
-              return!
-                openapistring
-                |> OpenApiRaw
-                |> TransformOpenApiToV3Dereferenced (SwaggerUrl url)
-                >>= (fun (description, openapi) -> fixOrnJsonLdContext openapi |?> makeTuple description )
-                >>= (fun (description, jsonld) -> loadJsonLdIntoTripleStore jsonld |?> makeTuple description)
-            }
+      try
+        let! message = agent.Receive()
+        let (>>=) a b = Result.bind b a
+        let makeTuple a b = (a,b)
+        match message with
+        | AddToIndex (SwaggerUrl url) ->
+            serviceMap <- serviceMap |> Map.add (SwaggerUrl url) InProgress
+            let! result =
+              asyncResult {
+                printfn "Downloading openapi definition for %s" url
+                let! openapistring = SafeAsyncHttp.AsyncHttpTextResult(url, timeout=2000) |> AsyncResult.mapError (fun err -> err.ToString())
+                printfn "Downloading worked, processing..."
+                return!
+                  openapistring
+                  |> OpenApiRaw
+                  |> TransformOpenApiToV3Dereferenced (SwaggerUrl url)
+                  >>= (fun (description, openapi) -> fixOrnJsonLdContext openapi |?> makeTuple description )
+                  >>= (fun (description, jsonld) -> loadJsonLdIntoTripleStore jsonld |?> makeTuple description)
+              }
 
-          let updatedMap =
-            match result with
-            | Ok (serviceInformation, tripleStore) ->
-                printfn "Loading json-ld into triple store worked for service %s" url
-                serviceMap |> updateMap (SwaggerUrl url) (Indexed {TripleStore = tripleStore; OpenApiServiceInformation = serviceInformation})
-            | Error msg ->
-                printfn "Loading json-ld into triple store FAILED for service %s" url
-                serviceMap |> updateMap (SwaggerUrl url) (Failed msg)
+            let updatedMap =
+              match result with
+              | Ok (serviceInformation, tripleStore) ->
+                  printfn "Loading json-ld into triple store worked for service %s" url
+                  serviceMap |> updateMap (SwaggerUrl url) (Indexed {TripleStore = tripleStore; OpenApiServiceInformation = serviceInformation})
+              | Error msg ->
+                  printfn "Loading json-ld into triple store FAILED for service %s" url
+                  serviceMap |> updateMap (SwaggerUrl url) (Failed msg)
 
-          match updatedMap with
-          | Some map ->
-              serviceMap <- map
-          | None ->
-              printfn "Update of map failed: %s" url
+            match updatedMap with
+            | Some map ->
+                serviceMap <- map
+            | None ->
+                printfn "Update of map failed: %s" url
 
-      | RemoveFromIndex url ->
-          serviceMap <- serviceMap |> Map.remove url
+        | RemoveFromIndex url ->
+            serviceMap <- serviceMap |> Map.remove url
+      with
+      | ex -> printfn "Exception occured in OpenApi processing agent: %O" ex
 
       do! agentFunction(agent)
     }

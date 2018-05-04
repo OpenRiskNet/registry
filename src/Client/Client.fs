@@ -118,9 +118,6 @@ let view (model : Model) (dispatch : Msg -> unit) =
                         [ h5 [ ClassName "mt-0" ]
                              [ str app.K8sService.Name ]
                           str app.OpenApiServiceInformation.Description
-                          ul [ ]
-                            ( app.OpenApiServiceInformation.Endpoints
-                              |> List.map (fun endpoint -> li [  ] [ str endpoint ]) )
                         ]
                     ]
             )
@@ -129,7 +126,7 @@ let view (model : Model) (dispatch : Msg -> unit) =
         [ h3  [] [ str "Active OpenRiskNet services" ]
           ul []
              ornServiceFragments
-          h3  [] [ str "Active OpenRiskNet services" ]
+          h3  [] [ str "Kubernetes services (debug view)" ]
           ul []
              plainK8sFragments
         ]
