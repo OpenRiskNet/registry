@@ -113,9 +113,12 @@ let view (model : Model) (dispatch : Msg -> unit) =
                     [ div [ ClassName "media-body" ]
                         [ h4 [ ClassName "mt-0" ]
                              [ str app.K8sService.Name ]
+                          str app.OpenApiServiceInformation.Description
                           h5 [ ClassName "mt-0" ]
                              [ str "Endpoints:" ]
-                          str app.OpenApiServiceInformation.Description
+                          ul [ ]
+                            ( app.OpenApiServiceInformation.Endpoints
+                              |> List.map (fun endpoint -> li [  ] [ str endpoint ]) )
                         ]
                     ]
             )
