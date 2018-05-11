@@ -113,4 +113,6 @@ type UpdateAgent(k8sApiUrl : string, cancelToken : CancellationToken) =
 
   [<CLIEvent>]
   member this.ServiceAdded = serviceAdded.Publish
+
+  [<CLIEvent>]
   member this.ServiceRemoved = serviceRemoved.Publish

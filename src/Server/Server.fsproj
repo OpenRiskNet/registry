@@ -6,6 +6,7 @@
   <ItemGroup>
     <Compile Include="../Shared/Shared.fs" />
     <Compile Include="BasicTypes.fs" />
+    <Compile Include="FeedbackAgent.fs" />
     <Compile Include="DereferencingVisitor.fs" />
     <Compile Include="OpenApiTransformer.fs" />
     <Compile Include="JsonLdParsing.fs" />
