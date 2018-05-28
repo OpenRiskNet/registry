@@ -43,7 +43,7 @@ let createRefreshAgent (action : Unit -> Unit) (timeoutMs : int) : MailboxProces
   let rec sleepRefreshLoop() =
     async {
       do! Async.Sleep(timeoutMs)
-
+      do action()
       do! sleepRefreshLoop()
     }
 
