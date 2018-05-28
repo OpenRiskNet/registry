@@ -11,6 +11,7 @@ open Orn.Registry.Shared
 type Message =
   | AddToIndex of SwaggerUrl
   | RemoveFromIndex of SwaggerUrl
+  | ReindexFailed
 
 type OpenRiskNetServiceInfo =
   { TripleStore : VDS.RDF.TripleStore
@@ -38,29 +39,40 @@ let updateMap key newval map =
     None
 
 
-type OpenApiAgent(cancelToken : CancellationToken) =
+type OpenApiAgent(feedbackAgent : Orn.Registry.Feedback.FeedbackAgent, cancelToken : CancellationToken) =
   let mutable serviceMap : Map<SwaggerUrl,TripleIndexingStatus> = Map []
 
-  let rec agentFunction (agent : Agent<Message>) =
+  let rec agentFunction ((feedbackAgent : Orn.Registry.Feedback.FeedbackAgent)) (agent : Agent<Message>) =
     async {
-      try
-        let! message = agent.Receive()
-        let (>>=) a b = Result.bind b a
-        let makeTuple a b = (a,b)
-        match message with
-        | AddToIndex (SwaggerUrl url) ->
+
+      let! message = agent.Receive()
+      let (>>=) a b = Result.bind b a
+      let makeTuple a b = (a,b)
+      match message with
+      | AddToIndex (SwaggerUrl url) ->
+          try
             serviceMap <- serviceMap |> Map.add (SwaggerUrl url) InProgress
             let! result =
               asyncResult {
                 printfn "Downloading openapi definition for %s" url
-                let! openapistring = SafeAsyncHttp.AsyncHttpTextResult(url, timeout=2000) |> AsyncResult.mapError (fun err -> err.ToString())
+                let! openapistring =
+                  SafeAsyncHttp.AsyncHttpTextResult(url, timeout=3000)
+                  |> AsyncResult.mapError (fun err -> err.ToString())
+                  |> AsyncResult.teeError (fun _ -> feedbackAgent.Post(Orn.Registry.Shared.OpenApiDownloadFailed(SwaggerUrl url)))
                 printfn "Downloading worked, processing..."
-                return!
+
+                let! description, openapi =
                   openapistring
                   |> OpenApiRaw
                   |> TransformOpenApiToV3Dereferenced (SwaggerUrl url)
-                  >>= (fun (description, openapi) -> fixOrnJsonLdContext openapi |?> makeTuple description )
-                  >>= (fun (description, jsonld) -> loadJsonLdIntoTripleStore jsonld |?> makeTuple description)
+                  |> Result.teeError (fun err -> feedbackAgent.Post(Orn.Registry.Shared.OpenApiParsingFailed(SwaggerUrl url, err)))
+                let! jsonld =
+                  fixOrnJsonLdContext openapi
+                  |> Result.teeError (fun err -> feedbackAgent.Post(Orn.Registry.Shared.JsonLdParsingError(SwaggerUrl url, err)))
+                let! tripleStore =
+                  loadJsonLdIntoTripleStore jsonld
+                  |> Result.teeError (fun err -> feedbackAgent.Post(Orn.Registry.Shared.JsonLdParsingError(SwaggerUrl url, err)))
+                return (description, tripleStore)
               }
 
             let updatedMap =
@@ -77,16 +89,27 @@ type OpenApiAgent(cancelToken : CancellationToken) =
                 serviceMap <- map
             | None ->
                 printfn "Update of map failed: %s" url
+          with
+          | ex ->
+            feedbackAgent.Post(Orn.Registry.Shared.JsonLdParsingError(SwaggerUrl url, ex.ToString()))
+            printfn "Exception occured in OpenApi processing agent: %O" ex
 
-        | RemoveFromIndex url ->
-            serviceMap <- serviceMap |> Map.remove url
-      with
-      | ex -> printfn "Exception occured in OpenApi processing agent: %O" ex
+      | RemoveFromIndex url ->
+          serviceMap <- serviceMap |> Map.remove url
 
-      do! agentFunction(agent)
+      | ReindexFailed ->
+          for serviceKeyValue in serviceMap do
+            match serviceKeyValue.Value with
+             | InProgress -> ()
+             | Indexed _ -> ()
+             | Failed _ -> agent.Post(AddToIndex(serviceKeyValue.Key))
+
+
+
+      do! agentFunction feedbackAgent agent
     }
 
-  let agent = Agent.Start(agentFunction, cancelToken)
+  let agent = Agent.Start(agentFunction feedbackAgent, cancelToken)
 
   member this.ServiceMap = serviceMap
 

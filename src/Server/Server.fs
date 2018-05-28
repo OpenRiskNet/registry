@@ -29,26 +29,29 @@ let config =
 
 let cancelTokenSource = new CancellationTokenSource()
 
+let feedbackAgent = Orn.Registry.Feedback.FeedbackAgent(cancelTokenSource.Token)
+let openApiAgent = OpenApiProcessing.OpenApiAgent(feedbackAgent, cancelTokenSource.Token)
 
-let openApiAgent = OpenApiProcessing.OpenApiAgent(cancelTokenSource.Token)
-
-let k8sUpdateAgent = Kubernetes.UpdateAgent(k8sApiUrl, cancelTokenSource.Token)
+let k8sUpdateAgent = Kubernetes.UpdateAgent(feedbackAgent, k8sApiUrl, cancelTokenSource.Token)
 k8sUpdateAgent.ServiceAdded
 |> Event.add (openApiAgent.SendMessage << OpenApiProcessing.AddToIndex)
 k8sUpdateAgent.ServiceRemoved
 |> Event.add (openApiAgent.SendMessage << OpenApiProcessing.RemoveFromIndex)
 
 
-let refreshAgent : MailboxProcessor<Unit> = Agent.Start((fun agent ->
+let createRefreshAgent (action : Unit -> Unit) (timeoutMs : int) : MailboxProcessor<Unit> = Agent.Start((fun agent ->
   let rec sleepRefreshLoop() =
     async {
-      do! Async.Sleep(2000)
-      k8sUpdateAgent.TriggerPull()
+      do! Async.Sleep(timeoutMs)
+
       do! sleepRefreshLoop()
     }
 
   sleepRefreshLoop()
   ), cancelTokenSource.Token)
+
+let kubernetesServicesRefreshAgent = createRefreshAgent k8sUpdateAgent.TriggerPull 2000
+let reindexFailedServicesRefreshAgent = createRefreshAgent (fun _ -> openApiAgent.SendMessage(OpenApiProcessing.ReindexFailed)) 30_000
 
 // TODO: Add giving back the indexed openrisknet servcies from openApiAgent as well
 //       Add frontend second list of openrisknet services with annotation as first list
@@ -65,7 +68,7 @@ let getCurrentServices () : Async<Shared.ActiveServices> =
 
     let k8sServiceWithOptionalOrnService =
       k8sServices
-      |> Seq.map ((fun service -> service.Annotations |> Map.tryFind Shared.Constants.OpenRiskNetOpenApiLabel )
+      |> Seq.map ((fun service -> service.Annotations |> Map.tryFind Shared.Constants.OpenApiLabelStaticServices )
                >> (fun swaggerurlOption -> swaggerurlOption |> Option.bind (fun swaggerurl -> ornServices |> Map.tryFind (Shared.SwaggerUrl swaggerurl) ) )
                >> (fun indexStatusOption ->
                     match indexStatusOption with
@@ -104,7 +107,8 @@ let getCurrentServices () : Async<Shared.ActiveServices> =
 
     return
       { Shared.PlainK8sServices = clientFormatK8sOnlyServices
-        Shared.OrnServices = clientFormatOrnServices  }
+        Shared.OrnServices = clientFormatOrnServices
+        Shared.Messages = feedbackAgent.Log |> Seq.toList }
 
   }
 

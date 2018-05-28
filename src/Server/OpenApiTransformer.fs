@@ -38,22 +38,22 @@ let ParseAndDereferenceOpenApi (OpenApiRaw openApiYaml) =
     Error (sprintf "%A" diagnostics.Errors)
 
 let TransformOpenApiToV3Dereferenced openApiUrl openApiString =
-  ParseAndDereferenceOpenApi openApiString
-  |> Result.bind (fun openapi ->
-      use writer = new StringWriter()
-      let openapiWriter = OpenApiJsonWriter(writer)
-      // TODO: extract more useful information (endpoints? tags?)
-      let endpoints = openapi.Paths.Keys
-      let description = { Shared.Description = openapi.Info.Description
-                          Shared.Endpoints = endpoints |> List.ofSeq
-                          Shared.SwaggerUrl = openApiUrl}
-      try
-        openapi.SerializeAsV3 openapiWriter
-        Ok (description, OpenApiDereferenced (writer.ToString()))
-      with
-      | ex ->
-        Error (ex.ToString())
-     )
+  result {
+    let! openapi = ParseAndDereferenceOpenApi openApiString
+    use writer = new StringWriter()
+    let openapiWriter = OpenApiJsonWriter(writer)
+    // TODO: extract more useful information (endpoints? tags?)
+    let endpoints = openapi.Paths.Keys
+    let description = { Shared.Description = openapi.Info.Description
+                        Shared.Endpoints = endpoints |> List.ofSeq
+                        Shared.SwaggerUrl = openApiUrl}
+    try
+      openapi.SerializeAsV3 openapiWriter
+      return description, OpenApiDereferenced (writer.ToString())
+    with
+    | ex ->
+      return! Error (ex.ToString())
+  }
 
 let testOpenAPI = """
 # ChemIdConvert - Chemical identifier conversion service

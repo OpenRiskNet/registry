@@ -8,7 +8,8 @@ type SwaggerUrl = SwaggerUrl of string
 
 module Constants =
   [<Literal>]
-  let OpenRiskNetOpenApiLabel = "openrisknet-openapi"
+  let OpenApiLabelStaticServices = "openrisknet-static-services"
+  let OpenApiLabelDynamicServices = "openrisknet-dynamic-services"
   let KubernetesNamespace = "openrisknet"
 // Application
 // type ApplicationStatus =
@@ -32,6 +33,16 @@ module Constants =
 //     LastPoll : DateTime
 //   }
 
+type Feedback =
+  | OpenApiDownloadFailed of SwaggerUrl
+  | OpenApiParsingFailed of SwaggerUrl * string
+  | JsonLdContextMissing of SwaggerUrl
+  | JsonLdParsingError of SwaggerUrl * string
+
+type TimestampedFeedback =
+  { Feedback : Feedback
+    Timestamp : System.DateTime }
+
 // Service
 type K8sService =
   { //OnlineOpenApiDefinition : Url
@@ -51,7 +62,8 @@ type OrnService =
 
 type ActiveServices =
   { PlainK8sServices : K8sService list
-    OrnServices : OrnService list }
+    OrnServices : OrnService list
+    Messages : TimestampedFeedback list }
 
 // Search
 type ServiceSqarqlQueryResult =

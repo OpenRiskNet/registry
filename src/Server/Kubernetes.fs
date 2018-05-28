@@ -28,7 +28,7 @@ type K8sService =
       this.Id.GetHashCode()
 
 
-type UpdateAgent(k8sApiUrl : string, cancelToken : CancellationToken) =
+type UpdateAgent(feedbackAgent : Orn.Registry.Feedback.FeedbackAgent, k8sApiUrl : string, cancelToken : CancellationToken) =
   let serviceAdded = new Event<SwaggerUrl>()
   let serviceRemoved = new Event<SwaggerUrl>()
 
@@ -84,19 +84,24 @@ type UpdateAgent(k8sApiUrl : string, cancelToken : CancellationToken) =
         for service in addedServices do
           let openRiskNetOpenApiUrl =
             service.Annotations
-            |> Map.tryFind Constants.OpenRiskNetOpenApiLabel
+            |> Map.tryFind Constants.OpenApiLabelStaticServices
           match openRiskNetOpenApiUrl with
-          | Some url ->
+          | Some rawurls ->
+              let urls = rawurls.Split('|') |> Array.map (fun url -> url.Trim())
               printfn "OpenRiskNet definition found for service %s" service.Name
-              serviceAdded.Trigger(SwaggerUrl url)
+              for url in urls do
+                serviceAdded.Trigger(SwaggerUrl url)
           | None -> printfn "No openrisknet definition given for %s" service.Name
 
         for service in removedServices do
           let openRiskNetOpenApiUrl =
             service.Annotations
-            |> Map.tryFind Constants.OpenRiskNetOpenApiLabel
+            |> Map.tryFind Constants.OpenApiLabelStaticServices
           match openRiskNetOpenApiUrl with
-          | Some url -> serviceRemoved.Trigger(SwaggerUrl url)
+          | Some rawurls ->
+            let urls = rawurls.Split('|') |> Array.map (fun url -> url.Trim())
+            for url in urls do
+              serviceRemoved.Trigger(SwaggerUrl url)
           | None -> ()
       with
       | ex -> printfn "Excption occured in Kubernetes Agent %O" ex

@@ -96,40 +96,50 @@ let view (model : Model) (dispatch : Msg -> unit) =
     match model.Services with
     | ServicesLoading -> [ p [] [str "Loading ..."] ]
     | ServicesError err -> [ p [] [str ("Error loading services: " + err)] ]
-    | Services {PlainK8sServices = k8sServices; OrnServices = ornServices} ->
-        let plainK8sFragments, ornServiceFragments =
+    | Services {PlainK8sServices = k8sServices; OrnServices = ornServices; Messages = messages} ->
+        let plainK8sFragments, ornServiceFragments, feedbackMessages =
           ( k8sServices
-          |> List.map (fun app ->
-                div [ ClassName "media" ; Style [ Border "1px solid lightgrey" ; Padding "1em" ] ]
-                    [ div [ ClassName "media-body" ]
-                        [ h5 [ ClassName "mt-0" ]
-                             [ str app.Name ]
-                        ]
-                    ]
-          ),
-          ornServices
-          |> List.map (fun app ->
-                div [ ClassName "media" ; Style [ Border "1px solid lightgrey" ; Padding "1em" ] ]
-                    [ div [ ClassName "media-body" ]
-                        [ h4 [ ClassName "mt-0" ]
-                             [ str app.K8sService.Name ]
-                          str app.OpenApiServiceInformation.Description
-                          h5 [ ClassName "mt-0" ]
-                             [ str "Endpoints:" ]
-                          ul [ ]
-                            ( app.OpenApiServiceInformation.Endpoints
-                              |> List.map (fun endpoint -> li [  ] [ str endpoint ]) )
-                        ]
-                    ]
-            )
+            |> List.map (fun app ->
+                  div [ ClassName "media" ; Style [ Border "1px solid lightgrey" ; Padding "1em" ] ]
+                      [ div [ ClassName "media-body" ]
+                          [ h5 [ ClassName "mt-0" ]
+                               [ str app.Name ]
+                          ]
+                      ]
+            ),
+            ornServices
+            |> List.map (fun app ->
+                  div [ ClassName "media" ; Style [ Border "1px solid lightgrey" ; Padding "1em" ] ]
+                      [ div [ ClassName "media-body" ]
+                          [ h4 [ ClassName "mt-0" ]
+                               [ str app.K8sService.Name ]
+                            str app.OpenApiServiceInformation.Description
+                            h5 [ ClassName "mt-0" ]
+                               [ str "Endpoints:" ]
+                            ul [ ]
+                              ( app.OpenApiServiceInformation.Endpoints
+                                |> List.map (fun endpoint -> li [  ] [ str endpoint ]) )
+                          ]
+                      ]
+            ),
+            messages
+            |> List.map (fun feedbackMessage ->
+                  div [  ]
+                      [( match feedbackMessage.Feedback with
+                         | OpenApiDownloadFailed (SwaggerUrl url) -> str (sprintf "Downloading OpenAPI failed from URL: %s" url)
+                         | OpenApiParsingFailed (SwaggerUrl url, openapiMessage) -> str (sprintf "Parsing OpenAPI failed (from URL: %s) with message: %s" url openapiMessage)
+                         | JsonLdContextMissing (SwaggerUrl url) -> str (sprintf "Json-LD context missing in OpenAPI definition at URL: %s" url)
+                         | JsonLdParsingError (SwaggerUrl url, jsonldMessage) -> str (sprintf "Json-LD parsing error (from URL: %s) with message: %s" url jsonldMessage)
+                      )]
+              )
           )
 
         [ h3  [] [ str "Active OpenRiskNet services" ]
-          ul []
-             ornServiceFragments
+          div [] ornServiceFragments
           h3  [] [ str "Kubernetes services (debug view)" ]
-          ul []
-             plainK8sFragments
+          div [] plainK8sFragments
+          h3  [] [ str "Recent registry messages: " ]
+          div [] feedbackMessages
         ]
 
 
