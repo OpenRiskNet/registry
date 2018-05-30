@@ -27,7 +27,7 @@ let ParseAndDereferenceOpenApi (OpenApiRaw openApiYaml) =
   let reader = OpenApiStreamReader()
   let openapi = reader.Read(stream, ref diagnostics)
   if Seq.isEmpty diagnostics.Errors then
-    let validator = OpenApiValidator()
+    let validator = OpenApiValidator(Microsoft.OpenApi.Validations.ValidationRuleSet.GetDefaultRuleSet())
     validator.Visit(openapi)
     if (Seq.isEmpty validator.Errors) then
       let dereferenced = DereferenceOpenApi openapi
