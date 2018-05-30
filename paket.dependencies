@@ -7,7 +7,6 @@ group Server
   nuget Chiron
   nuget Fable.Remoting.Suave ~> 2.6
   nuget KubernetesClient
-  nuget FSharp.Core
   nuget dotNetRDF >= 2.0.0
   nuget Newtonsoft.Json
   nuget Suave >= 2.2.1
