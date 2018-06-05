@@ -50,8 +50,8 @@ type OpenApiAgent(feedbackAgent : Orn.Registry.Feedback.FeedbackAgent, cancelTok
       let makeTuple a b = (a,b)
       match message with
       | AddToIndex (SwaggerUrl url) ->
+          serviceMap <- serviceMap |> Map.add (SwaggerUrl url) InProgress
           try
-            serviceMap <- serviceMap |> Map.add (SwaggerUrl url) InProgress
             let! result =
               asyncResult {
                 printfn "Downloading openapi definition for %s" url
@@ -90,6 +90,13 @@ type OpenApiAgent(feedbackAgent : Orn.Registry.Feedback.FeedbackAgent, cancelTok
             | None ->
                 printfn "Update of map failed: %s" url
           with
+          | :? System.Net.WebException ->
+            printfn "Timeout occured in OpenApi processing agent when processing: %s" url
+            let updatedMap = (serviceMap |> updateMap (SwaggerUrl url) (Failed "Timeout while trying to download swagger definition"))
+            match updatedMap with
+            | Some updated ->
+                serviceMap <- updated
+            | _ -> ()
           | ex ->
             feedbackAgent.Post(Orn.Registry.Shared.JsonLdParsingError(SwaggerUrl url, ex.ToString()))
             printfn "Exception occured in OpenApi processing agent: %O" ex
