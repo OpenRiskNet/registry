@@ -55,8 +55,9 @@ type OpenApiAgent(feedbackAgent : Orn.Registry.Feedback.FeedbackAgent, cancelTok
             let! result =
               asyncResult {
                 printfn "Downloading openapi definition for %s" url
+                let headers = [ FSharp.Data.HttpRequestHeaders.Accept FSharp.Data.HttpContentTypes.Json ]
                 let! openapistring =
-                  SafeAsyncHttp.AsyncHttpTextResult(url, timeout=3000)
+                  SafeAsyncHttp.AsyncHttpTextResult(url, timeout=3000, headers=headers)
                   |> AsyncResult.mapError (fun err -> err.ToString())
                   |> AsyncResult.teeError (fun _ -> feedbackAgent.Post(Orn.Registry.Shared.OpenApiDownloadFailed(SwaggerUrl url)))
                 printfn "Downloading worked, processing..."
