@@ -116,11 +116,11 @@ let getCurrentServices () : Async<Shared.ActiveServices> =
 let init : WebPart =
   let registryProcotol =
     { Shared.getCurrentServices = getCurrentServices }
-  // Create a WebPart for the given implementation of the protocol
-  remoting registryProcotol {
-    // define how routes are mapped
-    use_route_builder Shared.Route.builder
-  }
+
+  Remoting.createApi()
+    |> Remoting.fromValue registryProcotol
+    |> Remoting.buildWebPart
+
 
 let webPart =
   choose [

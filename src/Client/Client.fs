@@ -46,9 +46,8 @@ module Server =
 
   /// A proxy you can use to talk to server directly
   let api : IRegistryProtocol =
-    Proxy.remoting<IRegistryProtocol> {
-      use_route_builder Route.builder
-    }
+    Remoting.createApi()
+    |> Remoting.buildProxy<IRegistryProtocol>()
 
 let refresh =
     Cmd.ofAsync
