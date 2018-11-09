@@ -12,6 +12,8 @@
     <Compile Include="JsonLdParsing.fs" />
     <Compile Include="OpenApiProcessingAgent.fs" />
     <Compile Include="Kubernetes.fs" />
+    <Compile Include="AgentSetup.fs" />
+    <Compile Include="Domain.fs" />
     <Compile Include="Server.fs" />
   </ItemGroup>
   <Import Project="..\..\.paket\Paket.Restore.targets" />
