@@ -1,105 +1,132 @@
-#r @"packages/build/FAKE/tools/FakeLib.dll"
+#r "paket: groupref build //"
+#load "./.fake/build.fsx/intellisense.fsx"
+
+#if !FAKE
+#r "netstandard"
+#r "Facades/netstandard" // https://github.com/ionide/ionide-vscode-fsharp/issues/839#issuecomment-396296095
+#endif
 
 open System
 
-open Fake
+open Fake.Core
+open Fake.DotNet
+open Fake.IO
 
-let serverPath = "./src/Server" |> FullName
-let clientPath = "./src/Client" |> FullName
-let deployDir = "./deploy" |> FullName
+let serverPath = Path.getFullName "./src/Server"
+let clientPath = Path.getFullName "./src/Client"
+let deployDir = Path.getFullName "./deploy"
 
 let platformTool tool winTool =
-  let tool = if isUnix then tool else winTool
-  tool
-  |> ProcessHelper.tryFindFileOnPath
-  |> function Some t -> t | _ -> failwithf "%s not found" tool
+    let tool = if Environment.isUnix then tool else winTool
+    match ProcessUtils.tryFindFileOnPath tool with
+    | Some t -> t
+    | _ ->
+        let errorMsg =
+            tool + " was not found in path. " +
+            "Please install it and make sure it's available from your path. " +
+            "See https://safe-stack.github.io/docs/quickstart/#install-pre-requisites for more info"
+        failwith errorMsg
 
 let nodeTool = platformTool "node" "node.exe"
 let yarnTool = platformTool "yarn" "yarn.cmd"
 
-let dotnetcliVersion = DotNetCli.GetDotNetSDKVersionFromGlobalJson()
-let mutable dotnetCli = "dotnet"
+let runTool cmd args workingDir =
+    let arguments = args |> String.split ' ' |> Arguments.OfArgs
+    Command.RawCommand (cmd, arguments)
+    |> CreateProcess.fromCommand
+    |> CreateProcess.withWorkingDirectory workingDir
+    |> CreateProcess.ensureExitCode
+    |> Proc.run
+    |> ignore
 
-let run cmd args workingDir =
-  let result =
-    ExecProcess (fun info ->
-      info.FileName <- cmd
-      info.WorkingDirectory <- workingDir
-      info.Arguments <- args) TimeSpan.MaxValue
-  if result <> 0 then failwithf "'%s %s' failed" cmd args
+let runDotNet cmd workingDir =
+    let result =
+        DotNet.exec (DotNet.Options.withWorkingDirectory workingDir) cmd ""
+    if result.ExitCode <> 0 then failwithf "'dotnet %s' failed in %s" cmd workingDir
 
-Target "Clean" (fun _ ->
-  CleanDirs [deployDir]
+let openBrowser url =
+    //https://github.com/dotnet/corefx/issues/10361
+    Command.ShellCommand url
+    |> CreateProcess.fromCommand
+    |> CreateProcess.ensureExitCodeWithMessage "opening browser failed"
+    |> Proc.run
+    |> ignore
+
+Target.create "Clean" (fun _ ->
+    Shell.cleanDirs [deployDir]
 )
 
-Target "InstallDotNetCore" (fun _ ->
-  dotnetCli <- DotNetCli.InstallDotNetSDK dotnetcliVersion
+Target.create "InstallClient" (fun _ ->
+    printfn "Node version:"
+    runTool nodeTool "--version" __SOURCE_DIRECTORY__
+    printfn "Yarn version:"
+    runTool yarnTool "--version" __SOURCE_DIRECTORY__
+    runTool yarnTool "install --frozen-lockfile" __SOURCE_DIRECTORY__
+    runDotNet "restore" clientPath
 )
 
-Target "InstallClient" (fun _ ->
-  printfn "Node version:"
-  run nodeTool "--version" __SOURCE_DIRECTORY__
-  printfn "Yarn version:"
-  run yarnTool "--version" __SOURCE_DIRECTORY__
-  run yarnTool "install --frozen-lockfile" __SOURCE_DIRECTORY__
-  run dotnetCli "restore" clientPath
+Target.create "RestoreServer" (fun _ ->
+    runDotNet "restore" serverPath
 )
 
-Target "RestoreServer" (fun () ->
-  run dotnetCli "restore" serverPath
+Target.create "Build" (fun _ ->
+    runDotNet "build" serverPath
+    runDotNet "fable webpack-cli -- --config src/Client/webpack.config.js -p" clientPath
 )
 
-Target "Build" (fun () ->
-  run dotnetCli "build" serverPath
-  run dotnetCli "fable webpack -- -p" clientPath
+Target.create "Run" (fun _ ->
+    let server = async {
+        runDotNet "watch run" serverPath
+    }
+    let client = async {
+        runDotNet "fable webpack-dev-server -- --config src/Client/webpack.config.js" clientPath
+    }
+    let browser = async {
+        do! Async.Sleep 5000
+        openBrowser "http://localhost:8080"
+    }
+
+    [ server; client; browser ]
+    |> Async.Parallel
+    |> Async.RunSynchronously
+    |> ignore
 )
 
-Target "Run" (fun () ->
-  let server = async {
-    run dotnetCli "watch run" serverPath
-  }
-  let client = async {
-    run dotnetCli "fable webpack-dev-server" clientPath
-  }
-  let browser = async {
-    Threading.Thread.Sleep 5000
-    Diagnostics.Process.Start "http://localhost:8080" |> ignore
-  }
+Target.create "Bundle" (fun _ ->
+    let serverDir = Path.combine deployDir "Server"
+    let clientDir = Path.combine deployDir "Client"
+    let publicDir = Path.combine clientDir "public"
 
-  [ server; client; browser]
-  |> Async.Parallel
-  |> Async.RunSynchronously
-  |> ignore
+    let publishArgs = sprintf "publish -c Release -o \"%s\"" serverDir
+    runDotNet publishArgs serverPath
+
+    Shell.copyDir publicDir "src/Client/public" FileFilter.allFiles
 )
 
-Target "Bundle" (fun _ ->
-  let serverDir = deployDir </> "Server"
-  let clientDir = deployDir </> "Client"
+let dockerUser = "safe-template"
+let dockerImageName = "safe-template"
+let dockerFullName = sprintf "%s/%s" dockerUser dockerImageName
 
-  let publicDir = clientDir </> "public"
-  let imageDir  = clientDir </> "Images"
+Target.create "Docker" (fun _ ->
+    let buildArgs = sprintf "build -t %s ." dockerFullName
+    runTool "docker" buildArgs "."
 
-  let publishArgs = sprintf "publish -c Release -o \"%s\"" serverDir
-  run dotnetCli publishArgs serverPath
-
-  !! "src/Client/public/**/*.*" |> CopyFiles publicDir
-  !! "src/Client/Images/**/*.*" |> CopyFiles imageDir
-
-  !! "src/Client/index.html"
-  ++ "src/Client/*.css"
-  |> CopyFiles clientDir
+    let tagArgs = sprintf "tag %s %s" dockerFullName dockerFullName
+    runTool "docker" tagArgs "."
 )
 
 
+open Fake.Core.TargetOperators
 
 "Clean"
-//  ==> "InstallDotNetCore"
-  ==> "InstallClient"
-  ==> "Build"
-  ==> "Bundle"
+    ==> "InstallClient"
+    ==> "Build"
+    ==> "Bundle"
+    ==> "Docker"
 
-"InstallClient"
-  ==> "RestoreServer"
-  ==> "Run"
+"Clean"
+    ==> "InstallClient"
+    ==> "RestoreServer"
+    ==> "Run"
 
-RunTargetOrDefault "Build"
+Target.runOrDefaultWithArguments "Build"

@@ -7,9 +7,13 @@ open Fable.Helpers.React
 open Fable.Helpers.React.Props
 open Fable.PowerPack.Fetch
 
+open Thoth.Json
+
+open Fulma
+
+
 open Orn.Registry
 open System.Collections.Specialized
-open Fable.PowerPack
 open Orn.Registry.Shared
 
 
@@ -45,9 +49,10 @@ module Server =
   open Fable.Remoting.Client
 
   /// A proxy you can use to talk to server directly
-  let api : IRegistryProtocol =
+  let api : RegistryProtocol =
     Remoting.createApi()
-    |> Remoting.buildProxy<IRegistryProtocol>()
+    |> Remoting.withRouteBuilder Route.builder
+    |> Remoting.buildProxy<RegistryProtocol>
 
 let refresh =
     Cmd.ofAsync
@@ -58,7 +63,7 @@ let refresh =
 
 let sleep =
     Cmd.ofPromise
-      (fun _ -> Promise.sleep 2000)
+      (fun _ -> Fable.PowerPack.Promise.sleep 2000)
       ()
       (fun _ -> Awake)
       (fun _ -> Awake)
@@ -143,8 +148,6 @@ let view (model : Model) (dispatch : Msg -> unit) =
 
 
   div [] serviceContent
-
-
 
 #if DEBUG
 open Elmish.Debug

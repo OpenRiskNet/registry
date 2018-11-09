@@ -1,18 +1,15 @@
 group Server
-  FSharp.Core
+    FSharp.Core
+    Giraffe
+    Microsoft.AspNetCore
+    Microsoft.AspNetCore.StaticFiles
+    Fable.Remoting.Giraffe
 
-  Suave
-  KubernetesClient
-  Fable.Remoting.Suave
-  Chiron
-
-  Microsoft.DotNet.Watcher.Tools
-
-  dotNetRDF
-  Newtonsoft.Json
-  System.Text.Encoding.CodePages
-  VDS.Common
-  Microsoft.OpenApi
-  Microsoft.OpenApi.Readers
-  Cvdm.ErrorHandling
-  DouglasConnect
+    KubernetesClient
+    dotNetRDF
+    VDS.Common
+    Microsoft.OpenApi
+    Microsoft.OpenApi.Readers
+    Cvdm.ErrorHandling
+    DouglasConnect
+    Chiron

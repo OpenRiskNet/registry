@@ -1,34 +1,48 @@
-﻿module Orn.Registry.Server
+open System
+open System.IO
+open System.Threading.Tasks
 
-open Suave
-open Suave.Operators
+open Microsoft.AspNetCore
+open Microsoft.AspNetCore.Builder
+open Microsoft.AspNetCore.Hosting
+open Microsoft.Extensions.DependencyInjection
+
+open FSharp.Control.Tasks.V2
+open Giraffe
+open Orn.Registry.Shared
 
 open Fable.Remoting.Server
-open Fable.Remoting.Suave
-
+open Fable.Remoting.Giraffe
 open Orn.Registry.Domain
 
-let config =
-  { defaultConfig with
-      homeFolder = Some clientPath
-      bindings = [ HttpBinding.create HTTP (IPAddress.Parse "0.0.0.0") port ] }
+let publicPath = Path.GetFullPath "../Client/public"
+let port = 8085us
+
+let registryProtocol = {
+    getCurrentServices = getCurrentServices
+}
+
+let webApp =
+    Remoting.createApi()
+    |> Remoting.withRouteBuilder Route.builder
+    |> Remoting.fromValue registryProtocol
+    |> Remoting.buildHttpHandler
 
 
-let init : WebPart =
-  let registryProcotol =
-    { Shared.getCurrentServices = getCurrentServices }
+let configureApp (app : IApplicationBuilder) =
+    app.UseDefaultFiles()
+       .UseStaticFiles()
+       .UseGiraffe webApp
 
-  Remoting.createApi()
-    |> Remoting.fromValue registryProcotol
-    |> Remoting.buildWebPart
+let configureServices (services : IServiceCollection) =
+    services.AddGiraffe() |> ignore
 
-
-let webPart =
-  choose [
-    init
-    Filters.path "/" >=> Files.browseFileHome "index.html"
-    Files.browseHome
-    RequestErrors.NOT_FOUND "Not found!"
-  ]
-
-startWebServer config webPart
+WebHost
+    .CreateDefaultBuilder()
+    .UseWebRoot(publicPath)
+    .UseContentRoot(publicPath)
+    .Configure(Action<IApplicationBuilder> configureApp)
+    .ConfigureServices(configureServices)
+    .UseUrls("http://0.0.0.0:" + port.ToString() + "/")
+    .Build()
+    .Run()

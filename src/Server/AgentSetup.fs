@@ -1,5 +1,10 @@
 module Orn.Registry.AgentSetup
 
+open System
+open System.IO
+open System.Threading
+
+open Orn.Registry.BasicTypes
 
 let clientPath = Path.Combine("..","Client") |> Path.GetFullPath
 let port = 8085us
@@ -10,11 +15,6 @@ let getEnvironmentVariableOrDefault name defaultValue =
   | str -> str
 
 let k8sApiUrl = getEnvironmentVariableOrDefault "KUBERNETES_API_ENDPOINT" ""
-
-let config =
-  { defaultConfig with
-      homeFolder = Some clientPath
-      bindings = [ HttpBinding.create HTTP (IPAddress.Parse "0.0.0.0") port ] }
 
 let cancelTokenSource = new CancellationTokenSource()
 
