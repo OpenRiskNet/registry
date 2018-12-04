@@ -1,12 +1,16 @@
 module Orn.Registry.Domain
 
 open Orn.Registry.BasicTypes
+open Microsoft.Extensions.Logging
 
 open Orn.Registry
 open Orn.Registry.AgentSetup
 
-let getCurrentServices () : Async<Shared.ActiveServices> =
+let getCurrentServices (logger : ILogger) () : Async<Shared.ActiveServices> =
   async {
+    // figure out how to do this here
+    logger.LogInformation "Entered getCurrentServices"
+
     let k8sServices =
       k8sUpdateAgent.Services
 

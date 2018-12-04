@@ -106,13 +106,15 @@ type OpenApiAgent(feedbackAgent : Orn.Registry.Feedback.FeedbackAgent, cancelTok
           serviceMap <- serviceMap |> Map.remove url
 
       | ReindexFailed ->
-          for serviceKeyValue in serviceMap do
-            match serviceKeyValue.Value with
-             | InProgress -> ()
-             | Indexed _ -> ()
-             | Failed _ -> agent.Post(AddToIndex(serviceKeyValue.Key))
-
-
+          serviceMap <-
+            Map.fold (fun state key value ->
+            match value with
+             | InProgress -> Map.add key value state
+             | Indexed _ -> Map.add key value state
+             | Failed _ ->
+                agent.Post(AddToIndex(key))
+                state // drop failed services after queing them for reindexing
+            ) Map.empty serviceMap
 
       do! agentFunction feedbackAgent agent
     }
