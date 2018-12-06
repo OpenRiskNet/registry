@@ -108,7 +108,7 @@ let testServices =
 
 let view (model : Model) (dispatch : Msg -> unit) =
   let serviceContent =
-    match testServices with
+    match model.Services with
     | ServicesLoading -> [ p [] [str "Loading ..."] ]
     | ServicesError err -> [ p [] [str ("Error loading services: " + err)] ]
     | Services {PlainK8sServices = k8sServices; OrnServices = ornServices; Messages = messages} ->
