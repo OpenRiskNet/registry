@@ -95,9 +95,20 @@ let update (msg : Msg) (model : Model) : Model * Cmd<Msg> =
 
   model', cmd
 
+let ornServicesTestValues =
+  [ { K8sService = {Name = "Test"; ServicePorts=[|8080|]}
+      OpenApiServiceInformation =
+        { Description = """Jaqpot v4 (Quattro) is the 4th version of a YAQP, a RESTful web platform which can be used to train machine learning models and use them to obtain toxicological predictions for given chemical compounds or engineered nano materials. Jaqpot v4 has integrated read-across, optimal experimental design, interlaboratory comparison, biokinetics and dose response modelling functionalities. The project is developed in Java8 and JEE7 by the <a href="http://www.chemeng.ntua.gr/labs/control_lab/"> Unit of Process Control and Informatics in the School of Chemical Engineering </a> at the <a href="https://www.ntua.gr/en/"> National Technical University of Athens.</a> """
+          Endpoints = ["/algorithm" ; "/api/api.json"; "/algorithm/DecisionStump/bagging" ]
+          SwaggerUrl = SwaggerUrl "http://someserivce/openapi.json"}
+    }]
+
+let testServices =
+  Services {PlainK8sServices = []; OrnServices = ornServicesTestValues; Messages = []}
+
 let view (model : Model) (dispatch : Msg -> unit) =
   let serviceContent =
-    match model.Services with
+    match testServices with
     | ServicesLoading -> [ p [] [str "Loading ..."] ]
     | ServicesError err -> [ p [] [str ("Error loading services: " + err)] ]
     | Services {PlainK8sServices = k8sServices; OrnServices = ornServices; Messages = messages} ->
@@ -113,16 +124,16 @@ let view (model : Model) (dispatch : Msg -> unit) =
             ),
             ornServices
             |> List.map (fun app ->
-                  div [ ClassName "media" ; Style [ Border "1px solid lightgrey" ; Padding "1em" ] ]
-                      [ div [ ClassName "media-body" ]
-                          [ h4 [ ClassName "mt-0" ]
+                  div [ ClassName "col-md-6" ]
+                      [ div [ ClassName "services-listing__service" ]
+                          [ div [ ClassName "service__name" ]
                                [ str app.K8sService.Name ]
-                            str app.OpenApiServiceInformation.Description
-                            h5 [ ClassName "mt-0" ]
-                               [ str "Endpoints:" ]
-                            ul [ ]
+                            div [ ClassName "service__description"] [ str app.OpenApiServiceInformation.Description ]
+                            br []
+                            div [ ClassName "service__info" ]
                               ( app.OpenApiServiceInformation.Endpoints
-                                |> List.map (fun endpoint -> li [  ] [ str endpoint ]) )
+                                |> List.map (fun endpoint -> div [ ClassName "service__info-item" ] [ str endpoint ]) )
+                            div [ ClassName "service__more-links"] [ a [ Href (app.OpenApiServiceInformation.SwaggerUrl.ToString()); Target "_blank" ] [ str "View OpenApi →" ]]
                           ]
                       ]
             ),
@@ -139,7 +150,7 @@ let view (model : Model) (dispatch : Msg -> unit) =
           )
 
         [ h3  [] [ str "Active OpenRiskNet services" ]
-          div [] ornServiceFragments
+          div [ ClassName "row services-listing" ] ornServiceFragments
           h3  [] [ str "Kubernetes services (debug view)" ]
           div [] plainK8sFragments
           h3  [] [ str "Recent registry messages: " ]
