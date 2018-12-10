@@ -56,16 +56,23 @@ let loadJsonLdIntoTripleStore
     }
 
 
-let runQuery (store : TripleStore) (Orn.Registry.Shared.SparqlQuery sparqlQuery) =
+let createSparqlQuery (queryString : string) : Result<SparqlQuery, string> =
+    let sparqlParser = SparqlQueryParser()
+    try
+        let query = sparqlParser.ParseFromString(queryString)
+        Ok query
+    with
+    | :? VDS.RDF.Parsing.RdfParseException as ex ->
+        Error (sprintf "Error parsing the Sparql query: %s" ex.Message)
+
+
+let runQuery (store : TripleStore) (query : SparqlQuery) =
     let ds = InMemoryDataset(store, true);
 
     let processor = LeviathanQueryProcessor(ds);
 
-    let sparqlParser = SparqlQueryParser()
-
     //Then we can parse a SPARQL string into a query
     try
-        let query = sparqlParser.ParseFromString(sparqlQuery)
         let resultSet = processor.ProcessQuery(query)
 
         match resultSet with

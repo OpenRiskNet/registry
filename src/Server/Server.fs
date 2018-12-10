@@ -9,25 +9,23 @@ open Microsoft.Extensions.Logging
 open Microsoft.Extensions.DependencyInjection
 
 open FSharp.Control.Tasks.V2
-open Giraffe
+
 open Orn.Registry.Shared
 
-open Fable.Remoting.Server
-open Fable.Remoting.Giraffe
 open Orn.Registry.Domain
+open Giraffe
 
 let publicPath = Path.GetFullPath "../Client/public"
 let port = 8085us
 
-let buildRegistryProtocol (context : Http.HttpContext) =
-    let logger = context.GetLogger()
-    { getCurrentServices = getCurrentServices logger }
 
 let webApp =
-    Remoting.createApi()
-    |> Remoting.withRouteBuilder Route.builder
-    |> Remoting.fromContext buildRegistryProtocol
-    |> Remoting.buildHttpHandler
+    choose [
+        OPTIONS >=> Successful.NO_CONTENT
+        route "/sparql" >=> GET >=> runSparqlQueryHandler
+        route "/services" >=> GET >=> getCurrentServicesHandler
+        // route "/applications"
+    ]
 
 
 let configureApp (app : IApplicationBuilder) =
@@ -40,6 +38,7 @@ let configureLogging (builder : ILoggingBuilder) =
     builder.AddConsole().AddDebug() |> ignore
 
 let configureServices (services : IServiceCollection) =
+    services.AddSingleton<Giraffe.Serialization.Json.IJsonSerializer>(Thoth.Json.Giraffe.ThothSerializer()) |> ignore
     services.AddGiraffe() |> ignore
 
 WebHost

@@ -3,12 +3,18 @@ module Orn.Registry.Domain
 open Orn.Registry.BasicTypes
 open Microsoft.Extensions.Logging
 
+open Giraffe
 open Orn.Registry
 open Orn.Registry.AgentSetup
+open Microsoft.AspNetCore
+open FSharp.Control.Tasks.V2.ContextInsensitive
+open Orn.Registry.OpenApiProcessing
+open Orn.Registry.JsonLdParsing
+open Orn.Registry.Shared
 
-let getCurrentServices (logger : ILogger) () : Async<Shared.ActiveServices> =
+let getCurrentServices (logger : ILogger) : Async<Shared.ActiveServices> =
   async {
-    // figure out how to do this here
+
     logger.LogInformation "Entered getCurrentServices"
 
     let k8sServices =
@@ -62,3 +68,64 @@ let getCurrentServices (logger : ILogger) () : Async<Shared.ActiveServices> =
         Shared.Messages = feedbackAgent.Log |> Seq.toList }
 
   }
+
+
+let getCurrentServicesHandler : HttpHandler =
+    fun next (ctx : Http.HttpContext) ->
+      task {
+        let logger = ctx.GetLogger()
+        let! services = getCurrentServices(logger)
+        return! Giraffe.HttpStatusCodeHandlers.Successful.ok (json services) next ctx
+      }
+
+
+let runSparqlQuery (logger : ILogger) (query : string) : Result<SparqlResultsForServices, string> =
+  result {
+    let! parsedQuery = createSparqlQuery query
+
+    let ornServices =
+        openApiAgent.ServiceMap
+
+    let openApisAndTripleStores =
+      ornServices
+      |> Map.fold (fun state key value ->
+                    match value with
+                    | InProgress -> state
+                    | Failed _ -> state
+                    | Indexed serviceInfo -> (key, serviceInfo.TripleStore) :: state ) []
+
+    // log info about operations
+
+    // TODO: we query the triple stores serially for now. If the memory use is ok we could run all
+    // these queries in parallel or use some kind of max-parallelism
+    let results =
+      openApisAndTripleStores
+      |> List.map (fun (openapiUrl, triples) -> (openapiUrl, runQuery triples parsedQuery))
+
+    let resultsWithEmptyListForErrors =
+      results
+      |> List.map (fun (openapiUrl, result) ->
+        match result with
+        | Ok resultTuples -> (openapiUrl, resultTuples)
+        | Error error ->
+          logger.LogError (sprintf "Error when running query %s against url %O: %s" query openapiUrl error)
+          (openapiUrl, []))
+
+    return resultsWithEmptyListForErrors
+  }
+
+let runSparqlQueryHandler : HttpHandler =
+  fun next (ctx : Http.HttpContext) ->
+    task {
+      let logger = ctx.GetLogger()
+      let hasQuery, query = ctx.Request.Query.TryGetValue "query"
+      if not hasQuery then
+        return! Giraffe.HttpStatusCodeHandlers.RequestErrors.BAD_REQUEST (text "Could not find query parameter 'query'") next ctx
+      else
+        let result = runSparqlQuery logger (query.[0])
+        match result with
+        | Ok resultTriplesForServices -> // TODO: serialize this properly
+            return! Giraffe.HttpStatusCodeHandlers.Successful.ok (json resultTriplesForServices) next ctx
+        | Error error ->
+            return! Giraffe.HttpStatusCodeHandlers.ServerErrors.INTERNAL_ERROR (text error) next ctx
+    }

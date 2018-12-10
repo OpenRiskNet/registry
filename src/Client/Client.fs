@@ -43,21 +43,10 @@ type Msg =
 | Refresh of Result<Shared.ActiveServices, exn>
 | Awake
 
-module Server =
-
-  open Orn.Registry.Shared
-  open Fable.Remoting.Client
-
-  /// A proxy you can use to talk to server directly
-  let api : RegistryProtocol =
-    Remoting.createApi()
-    |> Remoting.withRouteBuilder Route.builder
-    |> Remoting.buildProxy<RegistryProtocol>
-
 let refresh =
-    Cmd.ofAsync
-      Server.api.getCurrentServices
-      ()
+    Cmd.ofPromise
+      (fetchAs<ActiveServices> "/services" (Decode.Auto.generateDecoder()))
+      []
       (Ok >> Refresh)
       (Error >> Refresh)
 

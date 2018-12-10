@@ -3,7 +3,6 @@ group Server
     Giraffe
     Microsoft.AspNetCore
     Microsoft.AspNetCore.StaticFiles
-    Fable.Remoting.Giraffe
 
     KubernetesClient
     dotNetRDF
@@ -13,3 +12,5 @@ group Server
     Cvdm.ErrorHandling
     DouglasConnect
     Chiron
+    Thoth.Json.Net
+    Thoth.Json.Giraffe

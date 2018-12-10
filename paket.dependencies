@@ -7,7 +7,6 @@ group Server
     nuget Giraffe
     nuget Microsoft.AspNetCore
     nuget Microsoft.AspNetCore.StaticFiles
-    nuget Fable.Remoting.Giraffe
     nuget KubernetesClient
     nuget dotNetRDF >= 2.0.0
     nuget VDS.Common >= 1.9.0
@@ -15,6 +14,8 @@ group Server
     nuget Microsoft.OpenApi.Readers >= 1.0.0-beta015
     nuget Cvdm.ErrorHandling
     nuget Chiron
+    nuget Thoth.Json.Net
+    nuget Thoth.Json.Giraffe
 
     source https://baget.cloud.douglasconnect.com/v3/index.json
     nuget DouglasConnect
@@ -30,8 +31,8 @@ group Client
     nuget Fable.Elmish.React ~> 2
     nuget Fable.Elmish.HMR ~> 2
     nuget Fable.React ~> 4
-    nuget Fable.Remoting.Client ~> 4
     nuget Fulma ~> 1
+    nuget Thoth.Json
 
     clitool dotnet-fable ~> 2
 
