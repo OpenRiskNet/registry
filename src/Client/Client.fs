@@ -15,6 +15,7 @@ open Fulma
 open Orn.Registry
 open System.Collections.Specialized
 open Orn.Registry.Shared
+open Fable.Import
 
 
 type OntologySearchTerm =
@@ -43,7 +44,10 @@ type Model =
 
 type Msg =
 | Refresh of Result<Shared.ActiveServices, exn>
+| RunSparqlQuery
+| SparqlQueryFinished of Result<SparqlResultsForServices, exn>
 | Awake
+| QueryChanged of string
 
 let refresh =
     Cmd.ofPromise
@@ -51,6 +55,14 @@ let refresh =
       []
       (Ok >> Refresh)
       (Error >> Refresh)
+
+let runSparqlQuery query =
+    let url = sprintf "/api/sparql?query=%s" (System.Uri.EscapeUriString(query))
+    Cmd.ofPromise
+      (fetchAs<SparqlResultsForServices> url (Decode.Auto.generateDecoder()))
+      []
+      (Ok >> SparqlQueryFinished)
+      (Error >> SparqlQueryFinished)
 
 let sleep =
     Cmd.ofPromise
@@ -84,6 +96,12 @@ let update (msg : Msg) (model : Model) : Model * Cmd<Msg> =
     match msg with
     | Refresh (Ok services) -> { model with Services = Services services }, sleep
     | Refresh (Error err) -> { model with Services = ServicesError (err.ToString()) }, sleep
+    | SparqlQueryFinished (Ok results) -> { model with SparqlResults = Some results}, Cmd.none
+    | SparqlQueryFinished (Error err) ->
+        JS.console.log("Error when running sparql query!", [err])
+        { model with SparqlResults = None}, Cmd.none
+    | RunSparqlQuery -> { model with SparqlResults = None}, runSparqlQuery model.SparqlQuery
+    | QueryChanged query -> { model with SparqlQuery = query}, Cmd.none
     | Awake -> model, refresh
 
   model', cmd
