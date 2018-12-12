@@ -101,16 +101,16 @@ let view (model : Model) (dispatch : Msg -> unit) =
     | ServicesLoading -> [ p [] [str "Loading ..."] ]
     | ServicesError err -> [ p [] [str ("Error loading services: " + err)] ]
     | Services {PlainK8sServices = k8sServices; OrnServices = ornServices; Messages = messages} ->
-        let plainK8sFragments, ornServiceFragments, feedbackMessages =
-          ( k8sServices
+        let plainK8sFragments =
+            k8sServices
             |> List.map (fun app ->
                   div [ ClassName "media" ; Style [ Border "1px solid lightgrey" ; Padding "1em" ] ]
                       [ div [ ClassName "media-body" ]
                           [ h5 [ ClassName "mt-0" ]
                                [ str app.Name ]
                           ]
-                      ]
-            ),
+                      ])
+        let ornServiceFragments =
             ornServices
             |> List.map (fun app ->
                   div [ ClassName "col-md-6" ]
@@ -125,7 +125,8 @@ let view (model : Model) (dispatch : Msg -> unit) =
                             div [ ClassName "service__more-links"] [ a [ Href (app.OpenApiServiceInformation.SwaggerUrl.ToString()); Target "_blank" ] [ str "View OpenApi →" ]]
                           ]
                       ]
-            ),
+            )
+        let feedbackMessages =
             messages
             |> List.map (fun feedbackMessage ->
                   div [  ]
@@ -136,7 +137,6 @@ let view (model : Model) (dispatch : Msg -> unit) =
                          | JsonLdParsingError (SwaggerUrl url, jsonldMessage) -> str (sprintf "Json-LD parsing error (from URL: %s) with message: %s" url jsonldMessage)
                       )]
               )
-          )
 
         [ h3  [] [ str "Active OpenRiskNet services" ]
           div [ ClassName "row services-listing" ] ornServiceFragments
