@@ -26,7 +26,7 @@ let getCurrentServices (logger : ILogger) : Async<Shared.ActiveServices> =
     let k8sServiceWithOptionalOrnService =
       k8sServices
       |> Seq.map ((fun service -> service.Annotations |> Map.tryFind Shared.Constants.OpenApiLabelStaticServices )
-               >> (fun swaggerurlOption -> swaggerurlOption |> Option.bind (fun swaggerurl -> ornServices |> Map.tryFind (Shared.SwaggerUrl swaggerurl) ) )
+               >> (fun openApiUrlOption -> openApiUrlOption |> Option.bind (fun openApiUrl -> ornServices |> Map.tryFind (Shared.OpenApiUrl openApiUrl) ) )
                >> (fun indexStatusOption ->
                     match indexStatusOption with
                     | None -> None
@@ -92,7 +92,7 @@ let runSparqlQuery (logger : ILogger) (query : string) : Result<SparqlResultsFor
                     match value with
                     | InProgress -> state
                     | Failed _ -> state
-                    | Indexed serviceInfo -> (key, serviceInfo.TripleStore) :: state ) []
+                    | Indexed serviceInfo -> (key, serviceInfo.OpenApiServiceInformation.Name, serviceInfo.TripleStore) :: state ) []
 
     // log info about operations
 
@@ -100,16 +100,24 @@ let runSparqlQuery (logger : ILogger) (query : string) : Result<SparqlResultsFor
     // these queries in parallel or use some kind of max-parallelism
     let results =
       openApisAndTripleStores
-      |> List.map (fun (openapiUrl, triples) -> (openapiUrl, runQuery triples parsedQuery))
+      |> List.map (fun (openapiUrl, name, triples) -> (openapiUrl, name, runQuery triples parsedQuery))
 
     let resultsWithEmptyListForErrors =
       results
-      |> List.map (fun (openapiUrl, result) ->
+      |> List.map (fun (openapiUrl, name, result) ->
         match result with
-        | Ok resultTuples -> (openapiUrl, resultTuples)
+        | Ok resultValue ->
+            { ServiceName = name
+              OpenApiUrl = openapiUrl
+              Result = resultValue
+            }
         | Error error ->
           logger.LogError (sprintf "Error when running query %s against url %O: %s" query openapiUrl error)
-          (openapiUrl, []))
+          {   ServiceName = name
+              OpenApiUrl = openapiUrl
+              Result = NoResult
+          }
+          )
 
     return resultsWithEmptyListForErrors
   }

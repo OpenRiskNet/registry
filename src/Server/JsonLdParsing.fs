@@ -12,8 +12,6 @@ open Newtonsoft.Json.Linq
 open Cvdm.ErrorHandling
 open Orn.Registry.BasicTypes
 
-
-
 let fixOrnJsonLdContext (OpenApiDereferenced openapiString) =
     let rec recursiveRenameContext (token : Chiron.Json) =
         match token with
@@ -67,9 +65,9 @@ let createSparqlQuery (queryString : string) : Result<SparqlQuery, string> =
 
 
 let runQuery (store : TripleStore) (query : SparqlQuery) =
-    let ds = InMemoryDataset(store, true);
+    let ds = InMemoryDataset(store, true)
 
-    let processor = LeviathanQueryProcessor(ds);
+    let processor = LeviathanQueryProcessor(ds)
 
     //Then we can parse a SPARQL string into a query
     try
@@ -77,15 +75,20 @@ let runQuery (store : TripleStore) (query : SparqlQuery) =
 
         match resultSet with
         | :? SparqlResultSet as r ->
-            r.Results
-            |> Seq.map
-                (fun result ->
-                    query.Variables
-                    |> Seq.map (fun var -> (var.Name, if result.HasValue(var.Name) then result.[var.Name].ToString() else ""))
-                    |> Seq.toList
-                )
-            |> Seq.toList
-            |> Ok
+            match r.ResultsType with
+            | VDS.RDF.Query.SparqlResultsType.Boolean -> Ok (Orn.Registry.Shared.BooleanResult r.Result)
+            | VDS.RDF.Query.SparqlResultsType.VariableBindings ->
+                r.Results
+                |> Seq.map
+                    (fun result ->
+                        query.Variables
+                        |> Seq.map (fun var -> if result.HasValue(var.Name) then result.[var.Name].ToString() else "")
+                        |> Seq.toList
+                    )
+                |> Seq.toList
+                |> fun results -> Orn.Registry.Shared.BindingResult { Variables = query.Variables |> Seq.map (fun var -> var.Name) |> List.ofSeq; ResultValues = results}
+                |> Ok
+            | _ -> Error "Unknown SPARQL result type"
         | _ ->
             Error "Item was not of expected type"
     with

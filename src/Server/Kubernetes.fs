@@ -29,8 +29,8 @@ type K8sService =
 
 
 type UpdateAgent(feedbackAgent : Orn.Registry.Feedback.FeedbackAgent, k8sApiUrl : string, cancelToken : CancellationToken) =
-  let serviceAdded = new Event<SwaggerUrl>()
-  let serviceRemoved = new Event<SwaggerUrl>()
+  let serviceAdded = new Event<OpenApiUrl>()
+  let serviceRemoved = new Event<OpenApiUrl>()
 
   let k8sconfig =
     if k8sApiUrl <> "" then
@@ -90,7 +90,7 @@ type UpdateAgent(feedbackAgent : Orn.Registry.Feedback.FeedbackAgent, k8sApiUrl 
               let urls = rawurls.Split('|') |> Array.map (fun url -> url.Trim())
               printfn "OpenRiskNet definition found for service %s" service.Name
               for url in urls do
-                serviceAdded.Trigger(SwaggerUrl url)
+                serviceAdded.Trigger(OpenApiUrl url)
           | None -> printfn "No openrisknet definition given for %s" service.Name
 
         for service in removedServices do
@@ -101,7 +101,7 @@ type UpdateAgent(feedbackAgent : Orn.Registry.Feedback.FeedbackAgent, k8sApiUrl 
           | Some rawurls ->
             let urls = rawurls.Split('|') |> Array.map (fun url -> url.Trim())
             for url in urls do
-              serviceRemoved.Trigger(SwaggerUrl url)
+              serviceRemoved.Trigger(OpenApiUrl url)
           | None -> ()
       with
       | ex -> printfn "Excption occured in Kubernetes Agent %O" ex

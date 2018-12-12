@@ -9,8 +9,8 @@ open System.Threading
 open Orn.Registry.Shared
 
 type Message =
-  | AddToIndex of SwaggerUrl
-  | RemoveFromIndex of SwaggerUrl
+  | AddToIndex of OpenApiUrl
+  | RemoveFromIndex of OpenApiUrl
   | ReindexFailed
 
 type OpenRiskNetServiceInfo =
@@ -40,7 +40,7 @@ let updateMap key newval map =
 
 
 type OpenApiAgent(feedbackAgent : Orn.Registry.Feedback.FeedbackAgent, cancelToken : CancellationToken) =
-  let mutable serviceMap : Map<SwaggerUrl,TripleIndexingStatus> = Map []
+  let mutable serviceMap : Map<OpenApiUrl,TripleIndexingStatus> = Map []
 
   let rec agentFunction ((feedbackAgent : Orn.Registry.Feedback.FeedbackAgent)) (agent : Agent<Message>) =
     async {
@@ -49,8 +49,8 @@ type OpenApiAgent(feedbackAgent : Orn.Registry.Feedback.FeedbackAgent, cancelTok
       let (>>=) a b = Result.bind b a
       let makeTuple a b = (a,b)
       match message with
-      | AddToIndex (SwaggerUrl url) ->
-          serviceMap <- serviceMap |> Map.add (SwaggerUrl url) InProgress
+      | AddToIndex (OpenApiUrl url) ->
+          serviceMap <- serviceMap |> Map.add (OpenApiUrl url) InProgress
           try
             let! result =
               asyncResult {
@@ -59,20 +59,20 @@ type OpenApiAgent(feedbackAgent : Orn.Registry.Feedback.FeedbackAgent, cancelTok
                 let! openapistring =
                   SafeAsyncHttp.AsyncHttpTextResult(url, timeout=System.TimeSpan.FromSeconds(20.0), headers=headers)
                   |> AsyncResult.mapError (fun err -> err.ToString())
-                  |> AsyncResult.teeError (fun _ -> feedbackAgent.Post(Orn.Registry.Shared.OpenApiDownloadFailed(SwaggerUrl url)))
+                  |> AsyncResult.teeError (fun _ -> feedbackAgent.Post(Orn.Registry.Shared.OpenApiDownloadFailed(OpenApiUrl url)))
                 printfn "Downloading worked, processing..."
 
                 let! description, openapi =
                   openapistring
                   |> OpenApiRaw
-                  |> TransformOpenApiToV3Dereferenced (SwaggerUrl url)
-                  |> Result.teeError (fun err -> feedbackAgent.Post(Orn.Registry.Shared.OpenApiParsingFailed(SwaggerUrl url, err)))
+                  |> TransformOpenApiToV3Dereferenced (OpenApiUrl url)
+                  |> Result.teeError (fun err -> feedbackAgent.Post(Orn.Registry.Shared.OpenApiParsingFailed(OpenApiUrl url, err)))
                 let! jsonld =
                   fixOrnJsonLdContext openapi
-                  |> Result.teeError (fun err -> feedbackAgent.Post(Orn.Registry.Shared.JsonLdParsingError(SwaggerUrl url, err)))
+                  |> Result.teeError (fun err -> feedbackAgent.Post(Orn.Registry.Shared.JsonLdParsingError(OpenApiUrl url, err)))
                 let! tripleStore =
                   loadJsonLdIntoTripleStore jsonld
-                  |> Result.teeError (fun err -> feedbackAgent.Post(Orn.Registry.Shared.JsonLdParsingError(SwaggerUrl url, err)))
+                  |> Result.teeError (fun err -> feedbackAgent.Post(Orn.Registry.Shared.JsonLdParsingError(OpenApiUrl url, err)))
                 return (description, tripleStore)
               }
 
@@ -80,10 +80,10 @@ type OpenApiAgent(feedbackAgent : Orn.Registry.Feedback.FeedbackAgent, cancelTok
               match result with
               | Ok (serviceInformation, tripleStore) ->
                   printfn "Loading json-ld into triple store worked for service %s" url
-                  serviceMap |> updateMap (SwaggerUrl url) (Indexed {TripleStore = tripleStore; OpenApiServiceInformation = serviceInformation})
+                  serviceMap |> updateMap (OpenApiUrl url) (Indexed {TripleStore = tripleStore; OpenApiServiceInformation = serviceInformation})
               | Error msg ->
                   printfn "Loading json-ld into triple store FAILED for service %s" url
-                  serviceMap |> updateMap (SwaggerUrl url) (Failed msg)
+                  serviceMap |> updateMap (OpenApiUrl url) (Failed msg)
 
             match updatedMap with
             | Some map ->
@@ -93,13 +93,13 @@ type OpenApiAgent(feedbackAgent : Orn.Registry.Feedback.FeedbackAgent, cancelTok
           with
           | :? System.Net.WebException ->
             printfn "Timeout occured in OpenApi processing agent when processing: %s" url
-            let updatedMap = (serviceMap |> updateMap (SwaggerUrl url) (Failed "Timeout while trying to download swagger definition"))
+            let updatedMap = (serviceMap |> updateMap (OpenApiUrl url) (Failed "Timeout while trying to download swagger definition"))
             match updatedMap with
             | Some updated ->
                 serviceMap <- updated
             | _ -> ()
           | ex ->
-            feedbackAgent.Post(Orn.Registry.Shared.JsonLdParsingError(SwaggerUrl url, ex.ToString()))
+            feedbackAgent.Post(Orn.Registry.Shared.JsonLdParsingError(OpenApiUrl url, ex.ToString()))
             printfn "Exception occured in OpenApi processing agent: %O" ex
 
       | RemoveFromIndex url ->

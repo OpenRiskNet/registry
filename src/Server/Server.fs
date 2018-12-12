@@ -22,9 +22,10 @@ let port = 8085us
 let webApp =
     choose [
         OPTIONS >=> Successful.NO_CONTENT
-        route "/sparql" >=> GET >=> runSparqlQueryHandler
-        route "/services" >=> GET >=> getCurrentServicesHandler
+        route "/api/sparql" >=> GET >=> runSparqlQueryHandler
+        route "/api/services" >=> GET >=> getCurrentServicesHandler
         // route "/applications"
+        //route "/openapi"
     ]
 
 

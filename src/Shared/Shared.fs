@@ -4,7 +4,7 @@ open System
 
 type Url = string
 type SparqlQuery = SparqlQuery of string
-type SwaggerUrl = SwaggerUrl of string
+type OpenApiUrl = OpenApiUrl of string
 
 module Constants =
   [<Literal>]
@@ -34,10 +34,10 @@ module Constants =
 //   }
 
 type Feedback =
-  | OpenApiDownloadFailed of SwaggerUrl
-  | OpenApiParsingFailed of SwaggerUrl * string
-  | JsonLdContextMissing of SwaggerUrl
-  | JsonLdParsingError of SwaggerUrl * string
+  | OpenApiDownloadFailed of OpenApiUrl
+  | OpenApiParsingFailed of OpenApiUrl * string
+  | JsonLdContextMissing of OpenApiUrl
+  | JsonLdParsingError of OpenApiUrl * string
 
 type TimestampedFeedback =
   { Feedback : Feedback
@@ -52,7 +52,8 @@ type K8sService =
 type OpenApiServiceInformation =
   { Description : string
     Endpoints : string list
-    SwaggerUrl : SwaggerUrl
+    OpenApiUrl : OpenApiUrl
+    Name : string
   }
 
 type OrnService =
@@ -70,5 +71,19 @@ type ServiceSqarqlQueryResult =
   { Name : String
     Endpoint : Url }
 
+type BindingResult =
+    { Variables : string list
+      ResultValues : string list list }
+
+type SparqlResult =
+    | BooleanResult of bool
+    | BindingResult of BindingResult
+    | NoResult
+
+type SparqlResultForService =
+  { ServiceName : string
+    OpenApiUrl : OpenApiUrl
+    Result : SparqlResult }
+
 type SparqlResultsForServices =
-  (SwaggerUrl * ((string * string) list list)) list
+  SparqlResultForService list

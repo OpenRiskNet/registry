@@ -37,6 +37,8 @@ type Model =
   { Services : ServiceList
     InputSearchTerm : OntologySearchTerm
     OutputSearchTerm : OntologySearchTerm
+    SparqlQuery : string
+    SparqlResults : SparqlResultsForServices option
   }
 
 type Msg =
@@ -45,7 +47,7 @@ type Msg =
 
 let refresh =
     Cmd.ofPromise
-      (fetchAs<ActiveServices> "/services" (Decode.Auto.generateDecoder()))
+      (fetchAs<ActiveServices> "/api/services" (Decode.Auto.generateDecoder()))
       []
       (Ok >> Refresh)
       (Error >> Refresh)
@@ -68,6 +70,8 @@ let init () : Model * Cmd<Msg> =
         { Text = ""
           OntologyTerm = None
           TermSuggestions = [] }
+      SparqlQuery = ""
+      SparqlResults = None
     }
 
   model, refresh
@@ -89,7 +93,8 @@ let ornServicesTestValues =
       OpenApiServiceInformation =
         { Description = """Jaqpot v4 (Quattro) is the 4th version of a YAQP, a RESTful web platform which can be used to train machine learning models and use them to obtain toxicological predictions for given chemical compounds or engineered nano materials. Jaqpot v4 has integrated read-across, optimal experimental design, interlaboratory comparison, biokinetics and dose response modelling functionalities. The project is developed in Java8 and JEE7 by the <a href="http://www.chemeng.ntua.gr/labs/control_lab/"> Unit of Process Control and Informatics in the School of Chemical Engineering </a> at the <a href="https://www.ntua.gr/en/"> National Technical University of Athens.</a> """
           Endpoints = ["/algorithm" ; "/api/api.json"; "/algorithm/DecisionStump/bagging" ]
-          SwaggerUrl = SwaggerUrl "http://someserivce/openapi.json"}
+          OpenApiUrl = OpenApiUrl "http://someserivce/openapi.json"
+          Name = "Jaqpot"}
     }]
 
 let testServices =
@@ -122,7 +127,7 @@ let view (model : Model) (dispatch : Msg -> unit) =
                             div [ ClassName "service__info" ]
                               ( app.OpenApiServiceInformation.Endpoints
                                 |> List.map (fun endpoint -> div [ ClassName "service__info-item" ] [ str endpoint ]) )
-                            div [ ClassName "service__more-links"] [ a [ Href (app.OpenApiServiceInformation.SwaggerUrl.ToString()); Target "_blank" ] [ str "View OpenApi →" ]]
+                            div [ ClassName "service__more-links"] [ a [ Href (app.OpenApiServiceInformation.OpenApiUrl.ToString()); Target "_blank" ] [ str "View OpenApi →" ]]
                           ]
                       ]
             )
@@ -131,10 +136,10 @@ let view (model : Model) (dispatch : Msg -> unit) =
             |> List.map (fun feedbackMessage ->
                   div [  ]
                       [( match feedbackMessage.Feedback with
-                         | OpenApiDownloadFailed (SwaggerUrl url) -> str (sprintf "Downloading OpenAPI failed from URL: %s" url)
-                         | OpenApiParsingFailed (SwaggerUrl url, openapiMessage) -> str (sprintf "Parsing OpenAPI failed (from URL: %s) with message: %s" url openapiMessage)
-                         | JsonLdContextMissing (SwaggerUrl url) -> str (sprintf "Json-LD context missing in OpenAPI definition at URL: %s" url)
-                         | JsonLdParsingError (SwaggerUrl url, jsonldMessage) -> str (sprintf "Json-LD parsing error (from URL: %s) with message: %s" url jsonldMessage)
+                         | OpenApiDownloadFailed (OpenApiUrl url) -> str (sprintf "Downloading OpenAPI failed from URL: %s" url)
+                         | OpenApiParsingFailed (OpenApiUrl url, openapiMessage) -> str (sprintf "Parsing OpenAPI failed (from URL: %s) with message: %s" url openapiMessage)
+                         | JsonLdContextMissing (OpenApiUrl url) -> str (sprintf "Json-LD context missing in OpenAPI definition at URL: %s" url)
+                         | JsonLdParsingError (OpenApiUrl url, jsonldMessage) -> str (sprintf "Json-LD parsing error (from URL: %s) with message: %s" url jsonldMessage)
                       )]
               )
 
