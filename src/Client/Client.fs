@@ -71,6 +71,7 @@ let refresh =
 
 let runSparqlQuery query =
     let url = sprintf "/api/sparql?query=%s" (Fable.Import.JS.encodeURIComponent (query))
+    JS.console.log("Running query with url: ", [url])
     Cmd.ofPromise
       (fetchAs<SparqlResultsForServices> url (Decode.Auto.generateDecoder()))
       []
@@ -83,6 +84,15 @@ let sleep =
       ()
       (fun _ -> Awake)
       (fun _ -> Awake)
+
+
+// TODO: Try to make this query work
+let initialQuery = """PREFIX orn: <http://openrisknet.org/schema#>
+
+SELECT * { ?s1 <orn:paths> ?o1 .
+?o1 (<orn:blank>|!<orn:blank>)* ?o2 .
+?o2 <http://semanticscience.org/resource/CHEMINF_000018> ?o}
+"""
 
 let init () : Model * Cmd<Msg> =
   let model =
@@ -146,20 +156,25 @@ let view (model : Model) (dispatch : Msg -> unit) =
               results
               |> List.collect (fun result ->
                   [ h3 [] [ str result.ServiceName]
-                    div [ ClassName "service__more-links"] [ a [ Href (result.OpenApiUrl.ToString()); Target "_blank" ] [ str "View OpenApi →" ]]
+                    div [] [ a [ Href (result.OpenApiUrl.ToString()); Target "_blank" ] [ str "View OpenApi →" ]]
                   ]
                   @
                   match result.Result with
                   | BooleanResult resultvalue ->
                       [ div [] [ (if resultvalue then str "True" else str "False")] ]
                   | BindingResult bindingresult ->
-                      let headers = tr [] (bindingresult.Variables |> List.map (fun variable -> th [] [str variable] ))
+                      let headers = tr [] (bindingresult.Variables |> List.map (fun variable -> th [  ] [str variable] ))
                       let rows =
                         bindingresult.ResultValues
                         |> List.map (fun resultrow -> tr [] (resultrow |> List.map (fun cell -> td [] [ str cell])))
 
-                      [ table []
-                          (headers :: rows)
+                      [ div [ ClassName "container"]
+                          [
+                            table [ ClassName "table"]
+                              [ thead [] [headers]
+                                tbody [] rows
+                              ]
+                          ]
                       ]
                   | NoResult -> []
 
@@ -167,7 +182,7 @@ let view (model : Model) (dispatch : Msg -> unit) =
         [ h3  [] [ str "Custom SparQL query" ]
           h5 [] [ str "Results" ]
           div [ ClassName "row" ] (if List.isEmpty results then [ str "No results" ] else results)
-          div [ ClassName "row" ] [ textarea [ Class "input is-medium"; OnChange (fun e -> dispatch (QueryChanged e.Value)) ; Value (model.SparqlQuery)] []]
+          div [ ClassName "row" ] [ textarea [ Rows 10; Class "input is-medium"; OnChange (fun e -> dispatch (QueryChanged e.Value)) ; DefaultValue (model.SparqlQuery)] []]
           div [ ClassName "control" ]
               [ a
                     [ OnClick (fun _ -> dispatch RunSparqlQuery) ]
