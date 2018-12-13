@@ -16,6 +16,7 @@ open Orn.Registry
 open System.Collections.Specialized
 open Orn.Registry.Shared
 open Fable.Import
+open Fable.PowerPack
 
 
 type OntologySearchTerm =
@@ -34,12 +35,23 @@ type ServiceList =
   | ServicesError of string
   | Services of Shared.ActiveServices
 
+type ActiveTab =
+  | ServicesTab
+  | SparqlQueryTab
+
+let AllTabs = [ ServicesTab ; SparqlQueryTab ]
+
+let tabToLabel = function
+| ServicesTab -> "Services"
+| SparqlQueryTab -> "SparQL query"
+
 type Model =
   { Services : ServiceList
     InputSearchTerm : OntologySearchTerm
     OutputSearchTerm : OntologySearchTerm
     SparqlQuery : string
     SparqlResults : SparqlResultsForServices option
+    ActiveTab : ActiveTab
   }
 
 type Msg =
@@ -48,6 +60,7 @@ type Msg =
 | SparqlQueryFinished of Result<SparqlResultsForServices, exn>
 | Awake
 | QueryChanged of string
+| TabChanged of ActiveTab
 
 let refresh =
     Cmd.ofPromise
@@ -57,7 +70,7 @@ let refresh =
       (Error >> Refresh)
 
 let runSparqlQuery query =
-    let url = sprintf "/api/sparql?query=%s" (System.Uri.EscapeUriString(query))
+    let url = sprintf "/api/sparql?query=%s" (Fable.Import.JS.encodeURIComponent (query))
     Cmd.ofPromise
       (fetchAs<SparqlResultsForServices> url (Decode.Auto.generateDecoder()))
       []
@@ -66,7 +79,7 @@ let runSparqlQuery query =
 
 let sleep =
     Cmd.ofPromise
-      (fun _ -> Fable.PowerPack.Promise.sleep 2000)
+      (fun _ -> Fable.PowerPack.Promise.sleep 20000)
       ()
       (fun _ -> Awake)
       (fun _ -> Awake)
@@ -84,6 +97,7 @@ let init () : Model * Cmd<Msg> =
           TermSuggestions = [] }
       SparqlQuery = ""
       SparqlResults = None
+      ActiveTab = ServicesTab
     }
 
   model, refresh
@@ -101,8 +115,11 @@ let update (msg : Msg) (model : Model) : Model * Cmd<Msg> =
         JS.console.log("Error when running sparql query!", [err])
         { model with SparqlResults = None}, Cmd.none
     | RunSparqlQuery -> { model with SparqlResults = None}, runSparqlQuery model.SparqlQuery
-    | QueryChanged query -> { model with SparqlQuery = query}, Cmd.none
+    | QueryChanged query ->
+      JS.console.log("Query updated", [query])
+      { model with SparqlQuery = query}, Cmd.none
     | Awake -> model, refresh
+    | TabChanged newTab -> { model with ActiveTab = newTab}, Cmd.none
 
   model', cmd
 
@@ -119,58 +136,105 @@ let testServices =
   Services {PlainK8sServices = []; OrnServices = ornServicesTestValues; Messages = []}
 
 let view (model : Model) (dispatch : Msg -> unit) =
-  let serviceContent =
-    match model.Services with
-    | ServicesLoading -> [ p [] [str "Loading ..."] ]
-    | ServicesError err -> [ p [] [str ("Error loading services: " + err)] ]
-    | Services {PlainK8sServices = k8sServices; OrnServices = ornServices; Messages = messages} ->
-        let plainK8sFragments =
-            k8sServices
-            |> List.map (fun app ->
-                  div [ ClassName "media" ; Style [ Border "1px solid lightgrey" ; Padding "1em" ] ]
-                      [ div [ ClassName "media-body" ]
-                          [ h5 [ ClassName "mt-0" ]
-                               [ str app.Name ]
-                          ]
-                      ])
-        let ornServiceFragments =
-            ornServices
-            |> List.map (fun app ->
-                  div [ ClassName "col-md-6" ]
-                      [ div [ ClassName "services-listing__service" ]
-                          [ div [ ClassName "service__name" ]
-                               [ str app.K8sService.Name ]
-                            div [ ClassName "service__description"] [ str app.OpenApiServiceInformation.Description ]
-                            br []
-                            div [ ClassName "service__info" ]
-                              ( app.OpenApiServiceInformation.Endpoints
-                                |> List.map (fun endpoint -> div [ ClassName "service__info-item" ] [ str endpoint ]) )
-                            div [ ClassName "service__more-links"] [ a [ Href (app.OpenApiServiceInformation.OpenApiUrl.ToString()); Target "_blank" ] [ str "View OpenApi →" ]]
-                          ]
+  let tabContent =
+    match model.ActiveTab with
+    | SparqlQueryTab ->
+        let results =
+          match model.SparqlResults with
+          | None -> []
+          | Some results ->
+              results
+              |> List.collect (fun result ->
+                  [ h3 [] [ str result.ServiceName]
+                    div [ ClassName "service__more-links"] [ a [ Href (result.OpenApiUrl.ToString()); Target "_blank" ] [ str "View OpenApi →" ]]
+                  ]
+                  @
+                  match result.Result with
+                  | BooleanResult resultvalue ->
+                      [ div [] [ (if resultvalue then str "True" else str "False")] ]
+                  | BindingResult bindingresult ->
+                      let headers = tr [] (bindingresult.Variables |> List.map (fun variable -> th [] [str variable] ))
+                      let rows =
+                        bindingresult.ResultValues
+                        |> List.map (fun resultrow -> tr [] (resultrow |> List.map (fun cell -> td [] [ str cell])))
+
+                      [ table []
+                          (headers :: rows)
                       ]
-            )
-        let feedbackMessages =
-            messages
-            |> List.map (fun feedbackMessage ->
-                  div [  ]
-                      [( match feedbackMessage.Feedback with
-                         | OpenApiDownloadFailed (OpenApiUrl url) -> str (sprintf "Downloading OpenAPI failed from URL: %s" url)
-                         | OpenApiParsingFailed (OpenApiUrl url, openapiMessage) -> str (sprintf "Parsing OpenAPI failed (from URL: %s) with message: %s" url openapiMessage)
-                         | JsonLdContextMissing (OpenApiUrl url) -> str (sprintf "Json-LD context missing in OpenAPI definition at URL: %s" url)
-                         | JsonLdParsingError (OpenApiUrl url, jsonldMessage) -> str (sprintf "Json-LD parsing error (from URL: %s) with message: %s" url jsonldMessage)
-                      )]
-              )
+                  | NoResult -> []
 
-        [ h3  [] [ str "Active OpenRiskNet services" ]
-          div [ ClassName "row services-listing" ] ornServiceFragments
-          h3  [] [ str "Kubernetes services (debug view)" ]
-          div [] plainK8sFragments
-          h3  [] [ str "Recent registry messages: " ]
-          div [] feedbackMessages
+                  )
+        [ h3  [] [ str "Custom SparQL query" ]
+          h5 [] [ str "Results" ]
+          div [ ClassName "row" ] (if List.isEmpty results then [ str "No results" ] else results)
+          div [ ClassName "row" ] [ textarea [ Class "input is-medium"; OnChange (fun e -> dispatch (QueryChanged e.Value)) ; Value (model.SparqlQuery)] []]
+          div [ ClassName "control" ]
+              [ a
+                    [ OnClick (fun _ -> dispatch RunSparqlQuery) ]
+                    [ str "Search" ] ]
         ]
+    | ServicesTab ->
+        match model.Services with
+        | ServicesLoading -> [ p [] [str "Loading ..."] ]
+        | ServicesError err -> [ p [] [str ("Error loading services: " + err)] ]
+        | Services {PlainK8sServices = k8sServices; OrnServices = ornServices; Messages = messages} ->
+            let plainK8sFragments =
+                k8sServices
+                |> List.map (fun app ->
+                      div [ ClassName "media" ; Style [ Border "1px solid lightgrey" ; Padding "1em" ] ]
+                          [ div [ ClassName "media-body" ]
+                              [ h5 [ ClassName "mt-0" ]
+                                   [ str app.Name ]
+                              ]
+                          ])
+            let ornServiceFragments =
+                ornServices
+                |> List.map (fun app ->
+                      div [ ClassName "col-md-6" ]
+                          [ div [ ClassName "services-listing__service" ]
+                              [ div [ ClassName "service__name" ]
+                                   [ str app.K8sService.Name ]
+                                div [ ClassName "service__description"] [ str app.OpenApiServiceInformation.Description ]
+                                br []
+                                div [ ClassName "service__info" ]
+                                  ( app.OpenApiServiceInformation.Endpoints
+                                    |> List.map (fun endpoint -> div [ ClassName "service__info-item" ] [ str endpoint ]) )
+                                div [ ClassName "service__more-links"] [ a [ Href (app.OpenApiServiceInformation.OpenApiUrl.ToString()); Target "_blank" ] [ str "View OpenApi →" ]]
+                              ]
+                          ]
+                )
+            let feedbackMessages =
+                messages
+                |> List.map (fun feedbackMessage ->
+                      div [  ]
+                          [( match feedbackMessage.Feedback with
+                             | OpenApiDownloadFailed (OpenApiUrl url) -> str (sprintf "Downloading OpenAPI failed from URL: %s" url)
+                             | OpenApiParsingFailed (OpenApiUrl url, openapiMessage) -> str (sprintf "Parsing OpenAPI failed (from URL: %s) with message: %s" url openapiMessage)
+                             | JsonLdContextMissing (OpenApiUrl url) -> str (sprintf "Json-LD context missing in OpenAPI definition at URL: %s" url)
+                             | JsonLdParsingError (OpenApiUrl url, jsonldMessage) -> str (sprintf "Json-LD parsing error (from URL: %s) with message: %s" url jsonldMessage)
+                          )]
+                  )
 
+            [ h3  [] [ str "Active OpenRiskNet services" ]
+              div [ ClassName "row services-listing" ] ornServiceFragments
+              h3  [] [ str "Kubernetes services (debug view)" ]
+              div [] plainK8sFragments
+              h3  [] [ str "Recent registry messages: " ]
+              div [] feedbackMessages
+            ]
 
-  div [] serviceContent
+  let renderTabs options labelFn activeTab message =
+    Tabs.tabs [ ]
+        (options
+         |> List.map (fun option ->
+                          Tabs.tab
+                              (if activeTab = option then [ Tabs.Tab.IsActive true] else [])
+                              [ a [ OnClick (fun _ -> dispatch (message option)) ] [ str (labelFn option) ] ] ) )
+
+  div []
+    [ renderTabs AllTabs tabToLabel model.ActiveTab TabChanged
+      div [] tabContent
+    ]
 
 #if DEBUG
 open Elmish.Debug

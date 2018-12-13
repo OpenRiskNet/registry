@@ -126,10 +126,12 @@ let runSparqlQueryHandler : HttpHandler =
   fun next (ctx : Http.HttpContext) ->
     task {
       let logger = ctx.GetLogger()
+      logger.LogInformation("Processing SparQL query")
       let hasQuery, query = ctx.Request.Query.TryGetValue "query"
       if not hasQuery then
         return! Giraffe.HttpStatusCodeHandlers.RequestErrors.BAD_REQUEST (text "Could not find query parameter 'query'") next ctx
       else
+        logger.LogInformation("Query is:", query)
         let result = runSparqlQuery logger (query.[0])
         match result with
         | Ok resultTriplesForServices -> // TODO: serialize this properly

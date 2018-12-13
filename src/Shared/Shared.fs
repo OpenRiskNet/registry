@@ -3,8 +3,23 @@ namespace Orn.Registry.Shared
 open System
 
 type Url = string
-type SparqlQuery = SparqlQuery of string
-type OpenApiUrl = OpenApiUrl of string
+type SparqlQuery =
+  | SparqlQuery of string
+  override this.ToString() =
+    match this with
+    | SparqlQuery content -> content
+  member this.Unwrap() =
+    match this with
+    | SparqlQuery content -> content
+
+type OpenApiUrl =
+  | OpenApiUrl of string
+  override this.ToString() =
+    match this with
+    | OpenApiUrl content -> content
+  member this.Unwrap() =
+    match this with
+    | OpenApiUrl content -> content
 
 module Constants =
   [<Literal>]
