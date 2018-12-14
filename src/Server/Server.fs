@@ -25,7 +25,7 @@ let webApp =
         route "/api/sparql" >=> GET >=> runSparqlQueryHandler
         route "/api/services" >=> GET >=> getCurrentServicesHandler
         // route "/applications"
-        //route "/openapi"
+        route "/openapi" >=> GET >=> swaggerUiHandler
     ]
 
 

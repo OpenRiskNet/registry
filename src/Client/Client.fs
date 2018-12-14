@@ -180,13 +180,11 @@ let view (model : Model) (dispatch : Msg -> unit) =
 
                   )
         [ h3  [] [ str "Custom SparQL query" ]
-          h5 [] [ str "Results" ]
-          div [ ClassName "row" ] (if List.isEmpty results then [ str "No results" ] else results)
-          div [ ClassName "row" ] [ textarea [ Rows 10; Class "input is-medium"; OnChange (fun e -> dispatch (QueryChanged e.Value)) ; DefaultValue (model.SparqlQuery)] []]
-          div [ ClassName "control" ]
-              [ a
-                    [ OnClick (fun _ -> dispatch RunSparqlQuery) ]
-                    [ str "Search" ] ]
+          div [ ClassName "form-group" ] [ textarea [ Rows 10; Class "form-control"; OnChange (fun e -> dispatch (QueryChanged e.Value)) ; DefaultValue (model.SparqlQuery)] []]
+          button [ ClassName "btn btn-primary"; OnClick (fun _ -> dispatch RunSparqlQuery) ] [ str "Search" ]
+          div [ ClassName "row" ]
+            ([ h5 [] [ str "Results" ]
+             ] @ (if List.isEmpty results then [  str "No results" ] else results))
         ]
     | ServicesTab ->
         match model.Services with
@@ -205,6 +203,8 @@ let view (model : Model) (dispatch : Msg -> unit) =
             let ornServiceFragments =
                 ornServices
                 |> List.map (fun app ->
+                      let swaggerUrl = app.OpenApiServiceInformation.OpenApiUrl.Unwrap()
+                      let swaggerUiLink = sprintf "/openapi?service=%s" (swaggerUrl |> Fable.Import.JS.encodeURIComponent)
                       div [ ClassName "col-md-6" ]
                           [ div [ ClassName "services-listing__service" ]
                               [ div [ ClassName "service__name" ]
@@ -214,7 +214,7 @@ let view (model : Model) (dispatch : Msg -> unit) =
                                 div [ ClassName "service__info" ]
                                   ( app.OpenApiServiceInformation.Endpoints
                                     |> List.map (fun endpoint -> div [ ClassName "service__info-item" ] [ str endpoint ]) )
-                                div [ ClassName "service__more-links"] [ a [ Href (app.OpenApiServiceInformation.OpenApiUrl.ToString()); Target "_blank" ] [ str "View OpenApi →" ]]
+                                div [ ClassName "service__more-links"] [ a [ Href (swaggerUiLink); Target "_blank" ] [ str "View OpenApi →" ]]
                               ]
                           ]
                 )

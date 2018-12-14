@@ -11,7 +11,7 @@ open FSharp.Control.Tasks.V2.ContextInsensitive
 open Orn.Registry.OpenApiProcessing
 open Orn.Registry.JsonLdParsing
 open Orn.Registry.Shared
-
+open DouglasConnect.Http
 let getCurrentServices (logger : ILogger) : Async<Shared.ActiveServices> =
   async {
 
@@ -139,3 +139,27 @@ let runSparqlQueryHandler : HttpHandler =
         | Error error ->
             return! Giraffe.HttpStatusCodeHandlers.ServerErrors.INTERNAL_ERROR (text error) next ctx
     }
+
+
+let swaggerUiHandler : HttpHandler =
+    fun next (ctx : Http.HttpContext) ->
+        task {
+          let hasService, serviceUris = ctx.Request.Query.TryGetValue "service"
+          if hasService then
+            let serviceUri = serviceUris.[0]
+            let services = openApiAgent.ServiceMap
+            let registeredService =
+              Map.tryFind (OpenApiUrl serviceUri) services
+              |> Option.map (fun serviceIndexingStatus ->
+                  match serviceIndexingStatus with
+                   | InProgress -> None
+                   | Indexed serviceInfo -> Some serviceInfo
+                   | Failed _ -> None)
+            let headers = [ FSharp.Data.HttpRequestHeaders.Accept FSharp.Data.HttpContentTypes.Json ]
+            let! openapiContentResult = Async.StartAsTask (SafeAsyncHttp.AsyncHttpTextResult(serviceUri, timeout=System.TimeSpan.FromSeconds(20.0), headers=headers))
+            match openapiContentResult with
+            | Ok openapiContent -> return! htmlView (Orn.Registry.Views.SwaggerUi.swaggerUi openapiContent) next ctx
+            | Error err -> return! Giraffe.HttpStatusCodeHandlers.ServerErrors.INTERNAL_ERROR "Could not retrieve Openapi document" next ctx
+          else
+            return! Giraffe.HttpStatusCodeHandlers.RequestErrors.NOT_FOUND "Please specify a valid service url in the service query parameter!" next ctx
+        }
