@@ -38,7 +38,7 @@ let ParseAndDereferenceOpenApi (OpenApiRaw openApiYaml) =
   else
     Error (sprintf "%A" diagnostics.Errors)
 
-let TransformOpenApiToV3Dereferenced openApiUrl openApiString =
+let TransformOpenApiToV3Dereferenced retrievedAt openApiUrl openApiString =
   result {
     let! openapi = ParseAndDereferenceOpenApi openApiString
     use writer = new StringWriter()
@@ -48,7 +48,8 @@ let TransformOpenApiToV3Dereferenced openApiUrl openApiString =
     let description = { Description = openapi.Info.Description
                         Endpoints = endpoints |> List.ofSeq
                         OpenApiUrl = openApiUrl
-                        Name = openapi.Info.Title }
+                        Name = openapi.Info.Title
+                        RetrievedAt = retrievedAt }
     try
       openapi.SerializeAsV3 openapiWriter
       return description, OpenApiDereferenced (writer.ToString())

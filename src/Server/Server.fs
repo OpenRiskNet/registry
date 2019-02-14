@@ -24,6 +24,9 @@ let webApp =
         OPTIONS >=> Successful.NO_CONTENT
         route "/api/sparql" >=> GET >=> runSparqlQueryHandler
         route "/api/services" >=> GET >=> getCurrentServicesHandler
+        route "/api/external-services" >=> POST >=> addExternalServiceHandler
+        route "/api/external-services" >=> DELETE >=> removeExternalServiceHandler
+        route "/api/services" >=> GET >=> getCurrentServicesHandler
         // route "/applications"
         route "/openapi" >=> GET >=> swaggerUiHandler
     ]

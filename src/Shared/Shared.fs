@@ -69,6 +69,7 @@ type OpenApiServiceInformation =
     Endpoints : string list
     OpenApiUrl : OpenApiUrl
     Name : string
+    RetrievedAt : DateTime
   }
 
 type OrnService =
@@ -76,9 +77,14 @@ type OrnService =
     OpenApiServiceInformation : OpenApiServiceInformation
   }
 
+type ExternalService =
+  { OpenApiServiceInformation : OpenApiServiceInformation }
+
 type ActiveServices =
   { PlainK8sServices : K8sService list
     OrnServices : OrnService list
+    ExternalOrnServices : ExternalService list
+    ExternalServices : string list
     Messages : TimestampedFeedback list }
 
 // Search

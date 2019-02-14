@@ -62,10 +62,12 @@ type OpenApiAgent(feedbackAgent : Orn.Registry.Feedback.FeedbackAgent, cancelTok
                   |> AsyncResult.teeError (fun _ -> feedbackAgent.Post(Orn.Registry.Shared.OpenApiDownloadFailed(OpenApiUrl url)))
                 printfn "Downloading worked, processing..."
 
+                let retrievedAt = System.DateTime.UtcNow
+
                 let! description, openapi =
                   openapistring
                   |> OpenApiRaw
-                  |> TransformOpenApiToV3Dereferenced (OpenApiUrl url)
+                  |> TransformOpenApiToV3Dereferenced retrievedAt (OpenApiUrl url)
                   |> Result.teeError (fun err -> feedbackAgent.Post(Orn.Registry.Shared.OpenApiParsingFailed(OpenApiUrl url, err)))
                 let! jsonld =
                   fixOrnJsonLdContext openapi

@@ -17,6 +17,10 @@ open System.Collections.Specialized
 open Orn.Registry.Shared
 open Fable.Import
 open Fable.PowerPack
+open System.Net
+open Fulma.FontAwesome
+open Fulma
+open Fulma
 
 
 type OntologySearchTerm =
@@ -38,12 +42,14 @@ type ServiceList =
 type ActiveTab =
   | ServicesTab
   | SparqlQueryTab
+  | ExternalServices
 
-let AllTabs = [ ServicesTab ; SparqlQueryTab ]
+let AllTabs = [ ServicesTab ; SparqlQueryTab ; ExternalServices ]
 
 let tabToLabel = function
 | ServicesTab -> "Services"
 | SparqlQueryTab -> "SparQL query"
+| ExternalServices -> "External services"
 
 type Model =
   { Services : ServiceList
@@ -52,6 +58,7 @@ type Model =
     SparqlQuery : string
     SparqlResults : SparqlResultsForServices option
     ActiveTab : ActiveTab
+    ExternalServiceTextFieldContent : string
   }
 
 type Msg =
@@ -61,6 +68,11 @@ type Msg =
 | Awake
 | QueryChanged of string
 | TabChanged of ActiveTab
+| AddExternalService
+| RemoveExternalService of string
+| ExternalServiceTextFieldChanged of string
+| AddExternalServiceRequestCompleted of Result<Response, exn>
+| RemoveExternalServiceRequestCompleted of Result<Response, exn>
 
 let refresh =
     Cmd.ofPromise
@@ -78,6 +90,36 @@ let runSparqlQuery query =
       (Ok >> SparqlQueryFinished)
       (Error >> SparqlQueryFinished)
 
+let buildUrl (baseString : string) (parameters : (string * string list) list) : string =
+  let allUsedParams = parameters |> List.filter (fun (_, values) -> not (List.isEmpty values))
+  let encodeUri str = System.Uri.EscapeDataString(str)
+
+  let paramMapFn (key, values) =
+    let concatenatedVals = String.concat "," values |> encodeUri
+    encodeUri key + "=" + concatenatedVals
+
+  let parameters = (List.map paramMapFn allUsedParams)
+
+  let paramsString =
+    match parameters with
+    | [] -> ""
+    | _ :: _ -> "?" + (String.concat "&" parameters)
+  baseString + paramsString
+
+let addExternalService service =
+    Cmd.ofPromise
+      (fetch (buildUrl "/api/external-services" [("service", [service])]))
+      [ RequestProperties.Method HttpMethod.POST]
+      (Ok >> AddExternalServiceRequestCompleted)
+      (Error >> AddExternalServiceRequestCompleted)
+
+let removeExternalService service =
+    Cmd.ofPromise
+      (fetch (buildUrl "/api/external-services" [("service", [service])]))
+      [ RequestProperties.Method HttpMethod.DELETE]
+      (Ok >> AddExternalServiceRequestCompleted)
+      (Error >> AddExternalServiceRequestCompleted)
+
 let sleep =
     Cmd.ofPromise
       (fun _ -> Fable.PowerPack.Promise.sleep 20000)
@@ -94,9 +136,26 @@ SELECT * { ?s1 <orn:paths> ?o1 .
 ?o2 <http://semanticscience.org/resource/CHEMINF_000018> ?o}
 """
 
+let ornServicesTestValues =
+  [ { K8sService = {Name = "Test"; ServicePorts=[|8080|]}
+      OpenApiServiceInformation =
+        { Description = """Jaqpot v4 (Quattro) is the 4th version of a YAQP, a RESTful web platform which can be used to train machine learning models and use them to obtain toxicological predictions for given chemical compounds or engineered nano materials. Jaqpot v4 has integrated read-across, optimal experimental design, interlaboratory comparison, biokinetics and dose response modelling functionalities. The project is developed in Java8 and JEE7 by the <a href="http://www.chemeng.ntua.gr/labs/control_lab/"> Unit of Process Control and Informatics in the School of Chemical Engineering </a> at the <a href="https://www.ntua.gr/en/"> National Technical University of Athens.</a> """
+          Endpoints = ["/algorithm" ; "/api/api.json"; "/algorithm/DecisionStump/bagging" ]
+          OpenApiUrl = OpenApiUrl "http://someserivce/openapi.json"
+          Name = "Jaqpot"
+          RetrievedAt = System.DateTime.UtcNow
+          }
+    }]
+
+let testServices =
+  Services {PlainK8sServices = []; OrnServices = ornServicesTestValues; ExternalOrnServices = []; ExternalServices = [] ; Messages = []}
+
+
 let init () : Model * Cmd<Msg> =
+  let initialServices = testServices
+  let initialCommand = Cmd.none
   let model =
-    { Services = ServicesLoading
+    { Services = initialServices
       InputSearchTerm =
         { Text = ""
           OntologyTerm = None
@@ -108,12 +167,11 @@ let init () : Model * Cmd<Msg> =
       SparqlQuery = ""
       SparqlResults = None
       ActiveTab = ServicesTab
+      ExternalServiceTextFieldContent = ""
     }
 
-  model, refresh
+  model, initialCommand
 
-let icon iconclasses =
-  i [ ClassName iconclasses; Style [MarginRight "0.5em"] ] []
 
 let update (msg : Msg) (model : Model) : Model * Cmd<Msg> =
   let model', cmd =
@@ -130,20 +188,23 @@ let update (msg : Msg) (model : Model) : Model * Cmd<Msg> =
       { model with SparqlQuery = query}, Cmd.none
     | Awake -> model, refresh
     | TabChanged newTab -> { model with ActiveTab = newTab}, Cmd.none
+    | ExternalServiceTextFieldChanged newText ->
+        { model with ExternalServiceTextFieldContent = newText }, Cmd.none
+    | AddExternalService ->
+        model, addExternalService model.ExternalServiceTextFieldContent
+    | RemoveExternalService service ->
+        model, addExternalService service
+    | AddExternalServiceRequestCompleted (Ok _) -> model, Cmd.none
+    | AddExternalServiceRequestCompleted (Error err) ->
+      Fable.Import.JS.console.log("Error:", [err])
+      model, Cmd.none
+    | RemoveExternalServiceRequestCompleted (Ok _) -> model, Cmd.none
+    | RemoveExternalServiceRequestCompleted (Error err) ->
+      Fable.Import.JS.console.log("Error:", [err])
+      model, Cmd.none
 
   model', cmd
 
-let ornServicesTestValues =
-  [ { K8sService = {Name = "Test"; ServicePorts=[|8080|]}
-      OpenApiServiceInformation =
-        { Description = """Jaqpot v4 (Quattro) is the 4th version of a YAQP, a RESTful web platform which can be used to train machine learning models and use them to obtain toxicological predictions for given chemical compounds or engineered nano materials. Jaqpot v4 has integrated read-across, optimal experimental design, interlaboratory comparison, biokinetics and dose response modelling functionalities. The project is developed in Java8 and JEE7 by the <a href="http://www.chemeng.ntua.gr/labs/control_lab/"> Unit of Process Control and Informatics in the School of Chemical Engineering </a> at the <a href="https://www.ntua.gr/en/"> National Technical University of Athens.</a> """
-          Endpoints = ["/algorithm" ; "/api/api.json"; "/algorithm/DecisionStump/bagging" ]
-          OpenApiUrl = OpenApiUrl "http://someserivce/openapi.json"
-          Name = "Jaqpot"}
-    }]
-
-let testServices =
-  Services {PlainK8sServices = []; OrnServices = ornServicesTestValues; Messages = []}
 
 let view (model : Model) (dispatch : Msg -> unit) =
   let tabContent =
@@ -186,11 +247,64 @@ let view (model : Model) (dispatch : Msg -> unit) =
             ([ h5 [] [ str "Results" ]
              ] @ (if List.isEmpty results then [  str "No results" ] else results))
         ]
+    | ExternalServices ->
+        match model.Services with
+        | ServicesLoading -> [ p [] [str "Loading ..."] ]
+        | ServicesError err -> [ p [] [str ("Error loading services: " + err)] ]
+        | Services {ExternalServices = externalServices; Messages = messages } ->
+            let externalServiceFragments =
+                externalServices
+                |> List.map (fun service ->
+                      div [ ClassName "row resource-listing__resource" ]
+                          [ div [ ClassName "resource__title" ]
+                               [ str service ]
+                            Button.a [ Button.Option.OnClick (fun _ -> dispatch <| RemoveExternalService service ) ] [ Icon.faIcon [ Icon.Option.IsLeft ] [ Fa.Types.IconOption.Icon Fa.I.Trash ] ]
+                          ]
+                )
+            let feedbackMessages =
+                messages
+                |> List.map (fun feedbackMessage ->
+                      div [  ]
+                          [( match feedbackMessage.Feedback with
+                             | OpenApiDownloadFailed (OpenApiUrl url) -> str (sprintf "Downloading OpenAPI failed from URL: %s" url)
+                             | OpenApiParsingFailed (OpenApiUrl url, openapiMessage) -> str (sprintf "Parsing OpenAPI failed (from URL: %s) with message: %s" url openapiMessage)
+                             | JsonLdContextMissing (OpenApiUrl url) -> str (sprintf "Json-LD context missing in OpenAPI definition at URL: %s" url)
+                             | JsonLdParsingError (OpenApiUrl url, jsonldMessage) -> str (sprintf "Json-LD parsing error (from URL: %s) with message: %s" url jsonldMessage)
+                          )]
+                  )
+
+            [ h3  [] [ str "Add a new external service" ]
+              Fulma.Text.p [ GenericOption.Modifiers [ Fulma.Modifier.TextSize(Screen.All, TextSize.Is7) ] ] [ str "Please beware that external services are not persisted at the moment (i.e. you have to add them again if the registry is restarted)"]
+
+              Fulma.Columns.columns []
+                [
+                  Column.column [ Column.Option.Width(Screen.All, Column.IsFourFifths) ]
+                   [ Fulma.Input.text
+                      [ Input.Option.ValueOrDefault model.ExternalServiceTextFieldContent
+                        Input.Option.OnChange (fun event -> dispatch <| ExternalServiceTextFieldChanged event.Value )
+                        Input.Placeholder "Absolute URL of OpenRiskNet annotated OpenAPI definition"
+                       ]
+                   ]
+                  Column.column []
+                   [ Fulma.Button.button [ Button.OnClick (fun _ -> dispatch AddExternalService) ] [ str "Add service"]
+                   ]
+
+                ]
+              h3  [] [ str "Currently registered external services" ]
+            ]
+            @
+            externalServiceFragments
+            @
+            [
+              h3  [] [ str "Recent registry messages: " ]
+              div [] feedbackMessages
+            ]
     | ServicesTab ->
         match model.Services with
         | ServicesLoading -> [ p [] [str "Loading ..."] ]
         | ServicesError err -> [ p [] [str ("Error loading services: " + err)] ]
-        | Services {PlainK8sServices = k8sServices; OrnServices = ornServices; Messages = messages} ->
+        | Services {PlainK8sServices = k8sServices; OrnServices = ornServices; ExternalOrnServices = externalServices; Messages = messages} ->
+            // TODO: render external services
             let plainK8sFragments =
                 k8sServices
                 |> List.map (fun app ->
@@ -208,7 +322,25 @@ let view (model : Model) (dispatch : Msg -> unit) =
                       div [ ClassName "col-md-6" ]
                           [ div [ ClassName "services-listing__service" ]
                               [ div [ ClassName "service__name" ]
-                                   [ str app.K8sService.Name ]
+                                   [ str app.OpenApiServiceInformation.Name ]
+                                div [ ClassName "service__description"] [ str app.OpenApiServiceInformation.Description ]
+                                br []
+                                div [ ClassName "service__info" ]
+                                  ( app.OpenApiServiceInformation.Endpoints
+                                    |> List.map (fun endpoint -> div [ ClassName "service__info-item" ] [ str endpoint ]) )
+                                div [ ClassName "service__more-links"] [ a [ Href (swaggerUiLink); Target "_blank" ] [ str "View OpenApi →" ]]
+                              ]
+                          ]
+                )
+            let externalServiceFragments =
+                externalServices
+                |> List.map (fun app ->
+                      let swaggerUrl = app.OpenApiServiceInformation.OpenApiUrl.Unwrap()
+                      let swaggerUiLink = sprintf "/openapi?service=%s" (swaggerUrl |> Fable.Import.JS.encodeURIComponent)
+                      div [ ClassName "col-md-6" ]
+                          [ div [ ClassName "services-listing__service" ]
+                              [ div [ ClassName "service__name" ]
+                                   [ str app.OpenApiServiceInformation.Name ]
                                 div [ ClassName "service__description"] [ str app.OpenApiServiceInformation.Description ]
                                 br []
                                 div [ ClassName "service__info" ]
@@ -230,8 +362,10 @@ let view (model : Model) (dispatch : Msg -> unit) =
                           )]
                   )
 
-            [ h3  [] [ str "Active OpenRiskNet services" ]
+            [ h3  [] [ str "OpenRiskNet services running in the VRE" ]
               div [ ClassName "row services-listing" ] ornServiceFragments
+              h3  [] [ str "External services with OpenRiskNet annotation" ]
+              div [ ClassName "row services-listing" ] externalServiceFragments
               h3  [] [ str "Kubernetes services (debug view)" ]
               div [] plainK8sFragments
               h3  [] [ str "Recent registry messages: " ]

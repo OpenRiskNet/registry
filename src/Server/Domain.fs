@@ -12,6 +12,9 @@ open Orn.Registry.OpenApiProcessing
 open Orn.Registry.JsonLdParsing
 open Orn.Registry.Shared
 open DouglasConnect.Http
+
+let mutable ExternalServices = Set.empty<string>
+
 let getCurrentServices (logger : ILogger) : Async<Shared.ActiveServices> =
   async {
 
@@ -22,6 +25,20 @@ let getCurrentServices (logger : ILogger) : Async<Shared.ActiveServices> =
 
     let ornServices =
       openApiAgent.ServiceMap
+
+    let externalServices =
+      ExternalServices
+
+    let externalServiceWithOptionalOrnService =
+      ExternalServices
+      |> Seq.choose  ((fun openApiUrl -> ornServices |> Map.tryFind (Shared.OpenApiUrl openApiUrl) )
+                     >> (fun indexStatusOption ->
+                          match indexStatusOption with
+                          | None -> None
+                          | Some OpenApiProcessing.InProgress -> None
+                          | Some (OpenApiProcessing.Failed _) -> None
+                          | Some (OpenApiProcessing.Indexed ornInfo) -> Some { OpenApiServiceInformation = ornInfo.OpenApiServiceInformation } ))
+      |> Seq.toList
 
     let k8sServiceWithOptionalOrnService =
       k8sServices
@@ -65,6 +82,8 @@ let getCurrentServices (logger : ILogger) : Async<Shared.ActiveServices> =
     return
       { Shared.PlainK8sServices = clientFormatK8sOnlyServices
         Shared.OrnServices = clientFormatOrnServices
+        Shared.ExternalOrnServices = externalServiceWithOptionalOrnService
+        Shared.ExternalServices = Set.toList externalServices
         Shared.Messages = feedbackAgent.Log |> Seq.toList }
 
   }
@@ -77,6 +96,38 @@ let getCurrentServicesHandler : HttpHandler =
         let! services = getCurrentServices(logger)
         return! Giraffe.HttpStatusCodeHandlers.Successful.ok (json services) next ctx
       }
+
+
+let addExternalServiceHandler : HttpHandler =
+  fun next (ctx : Http.HttpContext) ->
+    task {
+      let logger = ctx.GetLogger()
+      logger.LogInformation("Adding external service")
+      let hasService, service = ctx.Request.Query.TryGetValue "service"
+      if not hasService then
+        return! Giraffe.HttpStatusCodeHandlers.RequestErrors.BAD_REQUEST (text "Could not find query parameter 'service'") next ctx
+      else
+        logger.LogInformation("Adding service: ", service)
+        do openApiAgent.SendMessage(Orn.Registry.OpenApiProcessing.AddToIndex (OpenApiUrl (service.[0])))
+        ExternalServices <- Set.add service.[0] ExternalServices
+        return! Giraffe.HttpStatusCodeHandlers.Successful.NO_CONTENT next ctx
+    }
+
+
+let removeExternalServiceHandler : HttpHandler =
+  fun next (ctx : Http.HttpContext) ->
+    task {
+      let logger = ctx.GetLogger()
+      logger.LogInformation("Adding external service")
+      let hasService, service = ctx.Request.Query.TryGetValue "service"
+      if not hasService then
+        return! Giraffe.HttpStatusCodeHandlers.RequestErrors.BAD_REQUEST (text "Could not find query parameter 'service'") next ctx
+      else
+        logger.LogInformation("Removing service: ", service)
+        do openApiAgent.SendMessage(Orn.Registry.OpenApiProcessing.RemoveFromIndex (OpenApiUrl (service.[0])))
+        ExternalServices <- Set.remove service.[0] ExternalServices
+        return! Giraffe.HttpStatusCodeHandlers.Successful.NO_CONTENT next ctx
+    }
 
 
 let runSparqlQuery (logger : ILogger) (query : string) : Result<SparqlResultsForServices, string> =

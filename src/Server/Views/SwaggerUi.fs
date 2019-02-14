@@ -29,7 +29,8 @@ presets: [
             .ToString()
 
     let content =
-        [ div [_id "swagger-ui"] []
+        [ div [ _style "max-width: 100%; background-color: rgba(97,175,254,.1); padding: 0.4em; font-family: sans-serif;" ] [ str "Please note that since SwaggerUI runs in your browser (and not inside the cluster), the 'try it out' functionality will not work"]
+          div [_id "swagger-ui"] []
           script [_src @"https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/3.20.2/swagger-ui-bundle.js" ] []
           script [ ]
             [ rawText  fullContent
