@@ -130,7 +130,7 @@ let removeExternalServiceHandler : HttpHandler =
     }
 
 
-let runSparqlQuery (logger : ILogger) (query : string) : Result<SparqlResultsForServices, string> =
+let runSparqlQuery (logger : ILogger) (maybeService : OpenApiUrl option) (query : string) : Result<SparqlResultsForServices, string> =
   result {
     let! parsedQuery = createSparqlQuery query
 
@@ -149,8 +149,13 @@ let runSparqlQuery (logger : ILogger) (query : string) : Result<SparqlResultsFor
 
     // TODO: we query the triple stores serially for now. If the memory use is ok we could run all
     // these queries in parallel or use some kind of max-parallelism
+    let sources =
+      match maybeService with
+      | None -> openApisAndTripleStores
+      | Some service -> openApisAndTripleStores |> List.filter (fun (openapiUrl, _, _) -> openapiUrl = service)
+
     let results =
-      openApisAndTripleStores
+      sources
       |> List.map (fun (openapiUrl, name, triples) -> (openapiUrl, name, runQuery triples parsedQuery))
 
     let resultsWithEmptyListForErrors =
@@ -179,11 +184,16 @@ let runSparqlQueryHandler : HttpHandler =
       let logger = ctx.GetLogger()
       logger.LogInformation("Processing SparQL query")
       let hasQuery, query = ctx.Request.Query.TryGetValue "query"
+      let hasService, serviceValues = ctx.Request.Query.TryGetValue "service"
       if not hasQuery then
         return! Giraffe.HttpStatusCodeHandlers.RequestErrors.BAD_REQUEST (text "Could not find query parameter 'query'") next ctx
       else
         logger.LogInformation("Query is:", query)
-        let result = runSparqlQuery logger (query.[0])
+        let service =
+          if hasService
+          then Some (OpenApiUrl serviceValues.[0])
+          else None
+        let result = runSparqlQuery logger service (query.[0])
         match result with
         | Ok resultTriplesForServices -> // TODO: serialize this properly
             return! Giraffe.HttpStatusCodeHandlers.Successful.ok (json resultTriplesForServices) next ctx

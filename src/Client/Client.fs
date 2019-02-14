@@ -21,6 +21,7 @@ open System.Net
 open Fulma.FontAwesome
 open Fulma
 open Fulma
+open System.Drawing
 
 
 type OntologySearchTerm =
@@ -59,6 +60,7 @@ type Model =
     SparqlResults : SparqlResultsForServices option
     ActiveTab : ActiveTab
     ExternalServiceTextFieldContent : string
+    SelectedSparqlService : string
   }
 
 type Msg =
@@ -73,22 +75,7 @@ type Msg =
 | ExternalServiceTextFieldChanged of string
 | AddExternalServiceRequestCompleted of Result<Response, exn>
 | RemoveExternalServiceRequestCompleted of Result<Response, exn>
-
-let refresh =
-    Cmd.ofPromise
-      (fetchAs<ActiveServices> "/api/services" (Decode.Auto.generateDecoder()))
-      []
-      (Ok >> Refresh)
-      (Error >> Refresh)
-
-let runSparqlQuery query =
-    let url = sprintf "/api/sparql?query=%s" (Fable.Import.JS.encodeURIComponent (query))
-    JS.console.log("Running query with url: ", [url])
-    Cmd.ofPromise
-      (fetchAs<SparqlResultsForServices> url (Decode.Auto.generateDecoder()))
-      []
-      (Ok >> SparqlQueryFinished)
-      (Error >> SparqlQueryFinished)
+| SparqlSerivceSelected of string
 
 let buildUrl (baseString : string) (parameters : (string * string list) list) : string =
   let allUsedParams = parameters |> List.filter (fun (_, values) -> not (List.isEmpty values))
@@ -105,6 +92,28 @@ let buildUrl (baseString : string) (parameters : (string * string list) list) : 
     | [] -> ""
     | _ :: _ -> "?" + (String.concat "&" parameters)
   baseString + paramsString
+
+let refresh =
+    Cmd.ofPromise
+      (fetchAs<ActiveServices> "/api/services" (Decode.Auto.generateDecoder()))
+      []
+      (Ok >> Refresh)
+      (Error >> Refresh)
+
+let runSparqlQuery selectedSparqlService query =
+    let queryParams =
+      [("query", [query])]
+      @
+      if selectedSparqlService = ""
+      then []
+      else [("service", [selectedSparqlService])]
+    let url = buildUrl "/api/sparql" queryParams
+    JS.console.log("Running query with url: ", [url])
+    Cmd.ofPromise
+      (fetchAs<SparqlResultsForServices> url (Decode.Auto.generateDecoder()))
+      []
+      (Ok >> SparqlQueryFinished)
+      (Error >> SparqlQueryFinished)
 
 let addExternalService service =
     Cmd.ofPromise
@@ -131,6 +140,19 @@ let sleep =
 // TODO: Try to make this query work
 let initialQuery = """PREFIX orn: <http://openrisknet.org/schema#>
 
+# A very simple query the title of the Api:
+SELECT ?title
+WHERE {
+?tool orn:info ?info.
+?info orn:title ?title
+}
+
+# Another example query to get all tripples that could be resolved using the JsonLd context
+# SELECT * {?s ?p ?o}
+"""
+
+let moreInterestingQuery = """PREFIX orn: <http://openrisknet.org/schema#>
+
 SELECT * { ?s1 <orn:paths> ?o1 .
 ?o1 (<orn:blank>|!<orn:blank>)* ?o2 .
 ?o2 <http://semanticscience.org/resource/CHEMINF_000018> ?o}
@@ -151,9 +173,18 @@ let testServices =
   Services {PlainK8sServices = []; OrnServices = ornServicesTestValues; ExternalOrnServices = []; ExternalServices = [] ; Messages = []}
 
 
+let testSparqlResult =
+  [ { ServiceName = "Test"
+      OpenApiUrl = OpenApiUrl "http://bla.com/openapi"
+      Result = BindingResult { Variables = ["subject"; "predicate"; "object"]; ResultValues = [["Lazar REST Service^^http://www.w3.org/2001/XMLSchema#string"; "identity"; "Lazar REST Service^^http://www.w3.org/2001/XMLSchema#string"]]}}]
+
+
 let init () : Model * Cmd<Msg> =
-  let initialServices = ServicesLoading
-  let initialCommand = refresh
+  let localDebugMode = false
+  let initialServices, initialCommand, initialResults =
+    if localDebugMode
+    then testServices, Cmd.none, Some testSparqlResult
+    else ServicesLoading, refresh, None
   let model =
     { Services = initialServices
       InputSearchTerm =
@@ -164,10 +195,11 @@ let init () : Model * Cmd<Msg> =
         { Text = ""
           OntologyTerm = None
           TermSuggestions = [] }
-      SparqlQuery = ""
-      SparqlResults = None
+      SparqlQuery = initialQuery
+      SparqlResults = initialResults
       ActiveTab = ServicesTab
       ExternalServiceTextFieldContent = ""
+      SelectedSparqlService = ""
     }
 
   model, initialCommand
@@ -182,7 +214,7 @@ let update (msg : Msg) (model : Model) : Model * Cmd<Msg> =
     | SparqlQueryFinished (Error err) ->
         JS.console.log("Error when running sparql query!", [err])
         { model with SparqlResults = None}, Cmd.none
-    | RunSparqlQuery -> { model with SparqlResults = None}, runSparqlQuery model.SparqlQuery
+    | RunSparqlQuery -> { model with SparqlResults = None}, runSparqlQuery model.SelectedSparqlService model.SparqlQuery
     | QueryChanged query ->
       JS.console.log("Query updated", [query])
       { model with SparqlQuery = query}, Cmd.none
@@ -193,7 +225,7 @@ let update (msg : Msg) (model : Model) : Model * Cmd<Msg> =
     | AddExternalService ->
         model, addExternalService model.ExternalServiceTextFieldContent
     | RemoveExternalService service ->
-        model, addExternalService service
+        model, removeExternalService service
     | AddExternalServiceRequestCompleted (Ok _) -> model, Cmd.none
     | AddExternalServiceRequestCompleted (Error err) ->
       Fable.Import.JS.console.log("Error:", [err])
@@ -202,6 +234,7 @@ let update (msg : Msg) (model : Model) : Model * Cmd<Msg> =
     | RemoveExternalServiceRequestCompleted (Error err) ->
       Fable.Import.JS.console.log("Error:", [err])
       model, Cmd.none
+    | SparqlSerivceSelected newSelection -> { model with SelectedSparqlService = newSelection }, Cmd.none
 
   model', cmd
 
@@ -216,37 +249,66 @@ let view (model : Model) (dispatch : Msg -> unit) =
           | Some results ->
               results
               |> List.collect (fun result ->
-                  [ h3 [] [ str result.ServiceName]
-                    div [] [ a [ Href (result.OpenApiUrl.ToString()); Target "_blank" ] [ str "View OpenApi →" ]]
-                  ]
-                  @
-                  match result.Result with
-                  | BooleanResult resultvalue ->
-                      [ div [] [ (if resultvalue then str "True" else str "False")] ]
-                  | BindingResult bindingresult ->
-                      let headers = tr [] (bindingresult.Variables |> List.map (fun variable -> th [  ] [str variable] ))
-                      let rows =
-                        bindingresult.ResultValues
-                        |> List.map (fun resultrow -> tr [] (resultrow |> List.map (fun cell -> td [] [ str cell])))
+                    [   div [ ]
+                           ([ h5 [] [ str result.ServiceName]
+                              div [ ] [ a [ Href (result.OpenApiUrl.ToString()); Target "_blank" ] [ str "View OpenApi →" ]]
+                            ]
+                            @
+                            match result.Result with
+                            | BooleanResult resultvalue ->
+                                [ div [] [ (if resultvalue then str "True" else str "False")] ]
+                            | BindingResult bindingresult ->
+                                let headers = tr [] (bindingresult.Variables |> List.map (fun variable -> th [  ] [str variable] ))
+                                let rows =
+                                  bindingresult.ResultValues
+                                  |> List.map (fun resultrow -> tr [] (resultrow |> List.map (fun cell -> td [] [ str cell])))
 
-                      [ div [ ClassName "container"]
-                          [
-                            table [ ClassName "table"]
-                              [ thead [] [headers]
-                                tbody [] rows
-                              ]
-                          ]
-                      ]
-                  | NoResult -> []
+                                [ div [ ClassName "container"]
+                                    [
+                                      table [ ClassName "table"]
+                                        [ thead [] [headers]
+                                          tbody [] rows
+                                        ]
+                                    ]
+                                ]
+                            | NoResult -> []
+                           )
+                    ]
+
 
                   )
         [ h3  [] [ str "Custom SparQL query" ]
-          div [ ClassName "form-group" ] [ textarea [ Rows 10; Class "form-control"; OnChange (fun e -> dispatch (QueryChanged e.Value)) ; DefaultValue (model.SparqlQuery)] []]
+          div [ ClassName "form-group" ] <|
+            [ textarea [ Rows 10; Class "form-control"; OnChange (fun e -> dispatch (QueryChanged e.Value)) ; DefaultValue (model.SparqlQuery)] []
+            ]
+            @
+            match model.Services with
+            | ServicesLoading -> []
+            | ServicesError err -> [ ]
+            | Services {ExternalOrnServices = externalServices; OrnServices = ornServices; Messages = messages } ->
+              [ Fulma.Columns.columns []
+                  [ Fulma.Column.column [ Column.Option.Width(Screen.All, Column.IsOneThird) ] [ label [] [ str "Query only this service (optional): " ] ]
+                    Fulma.Column.column []
+                      [
+                        Fulma.Select.select [ Select.Option.IsFullWidth  ]
+                          [ select [ Value model.SelectedSparqlService; OnChange (fun event -> dispatch <| SparqlSerivceSelected event.Value) ]
+                              ( [ option [ Value "" ]  [ str "" ] ]
+                                @
+                                (
+                                  List.concat
+                                    [ externalServices |> List.map (fun service -> service.OpenApiServiceInformation)
+                                      ornServices |> List.map (fun service -> service.OpenApiServiceInformation)
+                                    ]
+                                  |> List.map (fun service ->
+                                        option [ Value service.OpenApiUrl ]  [ str service.Name ] ) )
+                                ) ] ]
+                  ]
+              ]
+
           button [ ClassName "btn btn-primary"; OnClick (fun _ -> dispatch RunSparqlQuery) ] [ str "Search" ]
-          div [ ClassName "row" ]
-            ([ h5 [] [ str "Results" ]
-             ] @ (if List.isEmpty results then [  str "No results" ] else results))
+          h3 [] [ str "Results" ]
         ]
+        @ (if List.isEmpty results then [  str "No results" ] else results)
     | ExternalServices ->
         match model.Services with
         | ServicesLoading -> [ p [] [str "Loading ..."] ]
