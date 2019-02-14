@@ -152,8 +152,8 @@ let testServices =
 
 
 let init () : Model * Cmd<Msg> =
-  let initialServices = testServices
-  let initialCommand = Cmd.none
+  let initialServices = ServicesLoading
+  let initialCommand = refresh
   let model =
     { Services = initialServices
       InputSearchTerm =
@@ -323,6 +323,10 @@ let view (model : Model) (dispatch : Msg -> unit) =
                           [ div [ ClassName "services-listing__service" ]
                               [ div [ ClassName "service__name" ]
                                    [ str app.OpenApiServiceInformation.Name ]
+                                div [ ClassName "service__info service__info-item"]
+                                  [ div [ ClassName "service__info-label"] [ str "Indexed at "]
+                                    div [ ClassName "service__info-value"] [ str (app.OpenApiServiceInformation.RetrievedAt.ToShortDateString() + " " + app.OpenApiServiceInformation.RetrievedAt.ToShortTimeString()) ]
+                                  ]
                                 div [ ClassName "service__description"] [ str app.OpenApiServiceInformation.Description ]
                                 br []
                                 div [ ClassName "service__info" ]
