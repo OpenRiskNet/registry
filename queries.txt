@@ -1,0 +1,72 @@
+PREFIX orn: <http://openrisknet.org/schema#>
+
+SELECT * {
+?smilesSubj <http://semanticscience.org/resource/CHEMINF_000018> ?smilesObj .
+?s1 (<orn:blank>|!<orn:blank>)* ?smilesSubj .
+?s2 ?p1 ?s1 .
+?s3 ?p2 ?s2 .
+?s4 ?p3 ?s3 .
+?s5 ?p4 ?s4 .
+?s6 ?p5 ?s5 .
+?s7 ?p6 ?s6 .
+
+
+}
+
+
+PREFIX orn: <http://openrisknet.org/schema#>
+
+SELECT * {
+?smilesSubj <http://semanticscience.org/resource/CHEMINF_000018> ?smilesObj .
+?s1 (<orn:blank>|!<orn:blank>)* ?smilesSubj .
+?s2 <http://openrisknet.org/schema#responses> ?s1 .
+?s3 ?p2 ?s2 .
+?s4 ?p3 ?s3
+
+}
+
+This does not solve the problem for parameters - for those we need
+
+
+todo: make table overflow with scrollbar
+view raw openapi
+Give visual loading indication
+
+
+
+SELECT * {
+?smilesSubj <http://semanticscience.org/resource/CHEMINF_000018> ?smilesObj .
+?s1 (<orn:blank>|!<orn:blank>)* ?smilesSubj .
+?endpoint ?p1 ?s1 .
+?endpoint <rdf:type> <orn:Endpoint>
+
+}
+
+
+# Query all things having smiles in response or request body by relying on endpoints being given the type Endpoint and an id of the full URL:
+
+PREFIX orn: <http://openrisknet.org/schema#>
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+
+
+SELECT * {
+?smilesSubj <http://semanticscience.org/resource/CHEMINF_000018> ?smilesObj .
+?s1 (<orn:blank>|!<orn:blank>)* ?smilesSubj .
+?endpoint ?p1 ?s1 .
+?endpoint <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <orn:Endpoint>
+
+}
+
+
+# Query all things having smiles in response or request body by relationship to paths only (gives relativeUrl like this: http://openrisknet.org/schema#/cas/to/smiles)
+PREFIX orn: <http://openrisknet.org/schema#>
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+
+
+SELECT * {
+?smilesSubj <http://semanticscience.org/resource/CHEMINF_000018> ?smilesObj .
+?endpoint (<orn:blank>|!<orn:blank>)* ?smilesSubj .
+?paths ?relativeUrl ?endpoint .
+?root <http://openrisknet.org/schema#paths> ?paths
+
+}
