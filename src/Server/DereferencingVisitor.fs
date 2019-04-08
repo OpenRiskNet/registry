@@ -141,6 +141,12 @@ type DereferencingVisitor (components : OpenApiComponents) =
           printfn "Could not dereference %s" reference.Id
         ()
 
+/// <summary>
+/// Visits headers.
+/// </summary>
+  override self.Visit(headers : IDictionary<string, OpenApiHeader>) =
+    ()
+
   /// <summary>
   /// Visits responses.
   /// </summary>
@@ -311,15 +317,52 @@ type DereferencingVisitor (components : OpenApiComponents) =
   /// </summary>
   override self.Visit(securityRequirement : OpenApiSecurityRequirement ) =
     ()
+  // /// <summary>
+  // /// Visits <see cref="OpenApiSecurityScheme"/>
+  // /// </summary>
+  // override self.Visit(securityScheme : OpenApiSecurityScheme) =
+  //   ()
 
-  /// <summary>
+  // /// <summary>
+  // /// Visits <see cref="OpenApiExample"/>
+  // /// </summary>
+  // override self.Visit(example : OpenApiExample) =
+  //       ()
   /// Visits list of <see cref="OpenApiTag"/>
   /// </summary>
   override self.Visit(openApiTags : IList<OpenApiTag> ) =
     ()
-
+  /// <summary>
+  /// Visits list of <see cref="OpenApiSecurityRequirement"/>
+  /// </summary>
+  override self.Visit(openApiSecurityRequirements : IList<OpenApiSecurityRequirement>) =
+    ()
   /// <summary>
   /// Visits <see cref="IOpenApiExtensible"/>
   /// </summary>
   override self.Visit(openApiExtensible : IOpenApiExtensible ) =
     ()
+  /// <summary>
+  /// Visits list of <see cref="OpenApiExample"/>
+  /// </summary>
+  override self.Visit(example : IList<OpenApiExample>) =
+    ()
+  /// <summary>
+  /// Visits a dictionary of server variables
+  /// </summary>
+  override self.Visit(serverVariables : IDictionary<string, OpenApiServerVariable>)=
+    ()
+
+  /// <summary>
+  /// Visits a dictionary of encodings
+  /// </summary>
+  /// <param name="encodings"></param>
+  override self.Visit(encodings : IDictionary<string, OpenApiEncoding>)=
+    ()
+
+  /// <summary>
+  /// Visits IOpenApiReferenceable instances that are references and not in components
+  /// </summary>
+  /// <param name="referenceable">referenced object</param>
+  // override self.Visit(referenceable : IOpenApiReferenceable)=
+  //   ()

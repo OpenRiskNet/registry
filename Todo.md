@@ -6,3 +6,6 @@
 * Debug Pantelis' problem
 * Debug Thomas issues
 * Add health endpoint
+* make results table horizontally scrollable
+* Allow DESCRIBE sparql keyword
+* Full sparql endpoint

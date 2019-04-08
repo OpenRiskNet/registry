@@ -14,3 +14,4 @@ group Server
     Chiron
     Thoth.Json.Net
     Thoth.Json.Giraffe
+    FSharp.Interop.NullOptAble

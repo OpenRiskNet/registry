@@ -18,7 +18,7 @@ open Orn.Registry.Shared
 open Fable.Import
 open Fable.PowerPack
 open System.Net
-open Fulma.FontAwesome
+open Fable.FontAwesome
 open Fulma
 open Fulma
 open System.Drawing
@@ -320,7 +320,7 @@ let view (model : Model) (dispatch : Msg -> unit) =
                       div [ ClassName "row resource-listing__resource" ]
                           [ div [ ClassName "resource__title" ]
                                [ str service ]
-                            Button.a [ Button.Option.OnClick (fun _ -> dispatch <| RemoveExternalService service ) ] [ Icon.faIcon [ Icon.Option.IsLeft ] [ Fa.Types.IconOption.Icon Fa.I.Trash ] ]
+                            Button.a [ Button.Option.OnClick (fun _ -> dispatch <| RemoveExternalService service ) ] [ Fa.i [ Fa.Solid.Trash ] [] ]
                           ]
                 )
             let feedbackMessages =

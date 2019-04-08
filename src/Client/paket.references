@@ -5,6 +5,8 @@ group Client
     Fable.Elmish.HMR
     Fable.Core
     Fulma
+    Fable.FontAwesome
+    Fable.FontAwesome.Free
     Thoth.Json
 
     dotnet-fable

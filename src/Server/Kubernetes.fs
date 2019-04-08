@@ -4,6 +4,7 @@ open k8s
 open System.Threading
 open Orn.Registry.BasicTypes
 open Orn.Registry.Shared
+open FSharp.Interop.NullOptAble
 
 
 [<CustomComparison; CustomEquality>]
@@ -34,7 +35,7 @@ type UpdateAgent(feedbackAgent : Orn.Registry.Feedback.FeedbackAgent, k8sApiUrl 
 
   let k8sconfig =
     if k8sApiUrl <> "" then
-      new KubernetesClientConfiguration(Host = k8sApiUrl)
+      KubernetesClientConfiguration(Host = k8sApiUrl)
     else
       KubernetesClientConfiguration.InClusterConfig();
 
@@ -46,27 +47,47 @@ type UpdateAgent(feedbackAgent : Orn.Registry.Feedback.FeedbackAgent, k8sApiUrl 
     async {
       let! result = Async.AwaitTask(client.ListServiceForAllNamespacesWithHttpMessagesAsync())
 
-      return
-        result.Body.Items
-        |> Seq.map (fun service ->
-          let labels =
-              if isNull service.Metadata.Annotations then
-                  Map<LabelKey, string> []
-              else
-                  service.Metadata.Annotations
-                  |> Seq.map (fun kvpair -> (kvpair.Key, kvpair.Value))
-                  |> Map.ofSeq
+      let itemsResult =
+        FSharp.Interop.NullOptAble.TopLevelBuilders.option {
+          let! items = result.Body.Items
 
-          { Id = ServiceIdentifier service.Metadata.Name
-            Name = service.Metadata.Name
-            Namespace = service.Metadata.NamespaceProperty
-            Ports =
-              service.Spec.Ports
-              |> Seq.map (fun port -> port.Port)
-              |> Seq.toArray
-            Annotations = labels
-               }
-          )
+          let services =
+            FSharp.Interop.NullOptAble.TopLevelBuilders.chooseSeq {
+              for service in items do
+                let! metadata = service.Metadata
+                let! name = metadata.Name
+                printfn "Collecting metadata for service %s" name
+                let! namespaceProperty = metadata.NamespaceProperty
+                let! spec = service.Spec
+                let! ports = spec.Ports
+
+                let labels =
+                    if isNull service.Metadata.Annotations then
+                        Map<LabelKey, string> []
+                    else
+                        service.Metadata.Annotations
+                        |> Seq.map (fun kvpair -> (kvpair.Key, kvpair.Value))
+                        |> Map.ofSeq
+
+                printfn "Metadata collected"
+                yield
+                  { Id = ServiceIdentifier name
+                    Name = name
+                    Namespace = namespaceProperty
+                    Ports =
+                      ports
+                      |> Seq.map (fun port -> port.Port)
+                      |> Seq.toArray
+                    Annotations = labels
+                       }
+            }
+          return services
+        }
+      match itemsResult with
+      | Some items -> return (items |> Seq.toArray)
+      | None -> return [||]
+
+
     }
 
   let rec AgentFunction (agent : Agent<Unit>) =
