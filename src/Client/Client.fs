@@ -380,7 +380,9 @@ let view (model : Model) (dispatch : Msg -> unit) =
                 ornServices
                 |> List.map (fun app ->
                       let swaggerUrl = app.OpenApiServiceInformation.OpenApiUrl.Unwrap()
-                      let swaggerUiLink = sprintf "/openapi?service=%s" (swaggerUrl |> Fable.Import.JS.encodeURIComponent)
+                      let swaggerUiLink = sprintf "/swaggerui?service=%s" (swaggerUrl |> Fable.Import.JS.encodeURIComponent)
+                      let rawOpenApiLink = sprintf "/openapi-raw?service=%s" (swaggerUrl |> Fable.Import.JS.encodeURIComponent)
+                      let dereferencedOpenApiLink = sprintf "/openapi-dereferenced?service=%s" (swaggerUrl |> Fable.Import.JS.encodeURIComponent)
                       div [ ClassName "col-md-6" ]
                           [ div [ ClassName "services-listing__service" ]
                               [ div [ ClassName "service__name" ]
@@ -394,7 +396,11 @@ let view (model : Model) (dispatch : Msg -> unit) =
                                 div [ ClassName "service__info" ]
                                   ( app.OpenApiServiceInformation.Endpoints
                                     |> List.map (fun endpoint -> div [ ClassName "service__info-item" ] [ str endpoint ]) )
-                                div [ ClassName "service__more-links"] [ a [ Href (swaggerUiLink); Target "_blank" ] [ str "View OpenApi →" ]]
+                                div [ ClassName "service__more-links"]
+                                  [ a [ Href (rawOpenApiLink); Target "_blank" ] [ str "View raw OpenApi →" ]
+                                    a [ Href (dereferencedOpenApiLink); Target "_blank" ] [ str "View dereferenced OpenApi →" ]
+                                    a [ Href (swaggerUiLink); Target "_blank" ] [ str "View SwaggerUI →" ]
+                                  ]
                               ]
                           ]
                 )

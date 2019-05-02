@@ -30,7 +30,7 @@ let webApp =
         // route "/applications"
         route "/swaggerui" >=> GET >=> swaggerUiHandler
         route "/openapi-raw" >=> GET >=> rawOpenApiHandler
-        route "/oepnapi-dereferenced" >=> GET >=> dereferencedOpenApiHandler
+        route "/openapi-dereferenced" >=> GET >=> dereferencedOpenApiHandler
     ]
 
 
