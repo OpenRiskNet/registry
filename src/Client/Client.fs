@@ -398,7 +398,9 @@ let view (model : Model) (dispatch : Msg -> unit) =
                                     |> List.map (fun endpoint -> div [ ClassName "service__info-item" ] [ str endpoint ]) )
                                 div [ ClassName "service__more-links"]
                                   [ a [ Href (rawOpenApiLink); Target "_blank" ] [ str "View raw OpenApi →" ]
+                                    br []
                                     a [ Href (dereferencedOpenApiLink); Target "_blank" ] [ str "View dereferenced OpenApi →" ]
+                                    br []
                                     a [ Href (swaggerUiLink); Target "_blank" ] [ str "View SwaggerUI →" ]
                                   ]
                               ]

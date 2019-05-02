@@ -264,6 +264,7 @@ let dereferencedOpenApiHandler : HttpHandler =
                | Failed _ -> None)
         match registeredService with
         | Some { DereferencedOpenApi = Some (OpenApiFixedContextEntry dereferencedOpenApi) } ->
+          ctx.SetHttpHeader "Content-Type" "application/json"
           return! Giraffe.HttpStatusCodeHandlers.Successful.ok (text dereferencedOpenApi) next ctx
         | _ ->
           return! Giraffe.HttpStatusCodeHandlers.ServerErrors.INTERNAL_ERROR "Could not retrieve OpenApi for requested service" next ctx
