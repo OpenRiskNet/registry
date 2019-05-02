@@ -23,6 +23,11 @@ type TripleIndexingStatus =
   | Indexed of OpenRiskNetServiceInfo
   | Failed of string
 
+type OpenApiProcessingInformation =
+  { Status : TripleIndexingStatus
+    RawOpenApi : OpenApiRaw option
+    DereferencedOpenApi : OpenApiFixedContextEntry option
+    }
 let updateMap key newval map =
   let mutable found = false
   let newMap =
@@ -40,7 +45,18 @@ let updateMap key newval map =
 
 
 type OpenApiAgent(feedbackAgent : Orn.Registry.Feedback.FeedbackAgent, cancelToken : CancellationToken) =
-  let mutable serviceMap : Map<OpenApiUrl,TripleIndexingStatus> = Map []
+  let mutable serviceMap : Map<OpenApiUrl,OpenApiProcessingInformation> = Map []
+
+  let updateServiceMap key newval =
+    let updatedMapOption = updateMap key newval serviceMap
+    match updatedMapOption with
+    | Some updatedMap ->
+      serviceMap <- updatedMap
+    | None ->
+      printfn "Could not find key %O" key
+      ()
+
+
 
   let rec agentFunction ((feedbackAgent : Orn.Registry.Feedback.FeedbackAgent)) (agent : Agent<Message>) =
     async {
@@ -49,8 +65,8 @@ type OpenApiAgent(feedbackAgent : Orn.Registry.Feedback.FeedbackAgent, cancelTok
       let (>>=) a b = Result.bind b a
       let makeTuple a b = (a,b)
       match message with
-      | AddToIndex (OpenApiUrl url) ->
-          serviceMap <- serviceMap |> Map.add (OpenApiUrl url) InProgress
+      | AddToIndex ((OpenApiUrl url) as openApiUrl) ->
+          serviceMap <- serviceMap |> Map.add openApiUrl { Status = InProgress; RawOpenApi = None; DereferencedOpenApi = None }
           try
             let! result =
               asyncResult {
@@ -59,7 +75,8 @@ type OpenApiAgent(feedbackAgent : Orn.Registry.Feedback.FeedbackAgent, cancelTok
                 let! openapistring =
                   SafeAsyncHttp.AsyncHttpTextResult(url, timeout=System.TimeSpan.FromSeconds(20.0), headers=headers)
                   |> AsyncResult.mapError (fun err -> err.ToString())
-                  |> AsyncResult.teeError (fun _ -> feedbackAgent.Post(Orn.Registry.Shared.OpenApiDownloadFailed(OpenApiUrl url)))
+                  |> AsyncResult.teeError (fun _ -> feedbackAgent.Post(Orn.Registry.Shared.OpenApiDownloadFailed(openApiUrl)))
+                updateServiceMap openApiUrl { Status = InProgress; RawOpenApi = Some (OpenApiRaw openapistring ); DereferencedOpenApi = None}
                 printfn "Downloading worked, processing..."
 
                 let retrievedAt = System.DateTime.UtcNow
@@ -67,35 +84,32 @@ type OpenApiAgent(feedbackAgent : Orn.Registry.Feedback.FeedbackAgent, cancelTok
                 let! description, openapi =
                   openapistring
                   |> OpenApiRaw
-                  |> TransformOpenApiToV3Dereferenced retrievedAt (OpenApiUrl url)
-                  |> Result.teeError (fun err -> feedbackAgent.Post(Orn.Registry.Shared.OpenApiParsingFailed(OpenApiUrl url, err)))
+                  |> TransformOpenApiToV3Dereferenced retrievedAt (openApiUrl)
+                  |> Result.teeError (fun err -> feedbackAgent.Post(Orn.Registry.Shared.OpenApiParsingFailed(openApiUrl, err)))
                 let! jsonld =
                   fixOrnJsonLdContext openapi
-                  |> Result.teeError (fun err -> feedbackAgent.Post(Orn.Registry.Shared.JsonLdParsingError(OpenApiUrl url, err)))
+                  |> Result.teeError (fun err -> feedbackAgent.Post(Orn.Registry.Shared.JsonLdParsingError(openApiUrl, err)))
+                updateServiceMap openApiUrl {Status = InProgress; RawOpenApi = Some (OpenApiRaw openapistring); DereferencedOpenApi = Some (OpenApiFixedContextEntry (jsonld.Unwrap()))}
                 let! tripleStore =
                   loadJsonLdIntoTripleStore jsonld
-                  |> Result.teeError (fun err -> feedbackAgent.Post(Orn.Registry.Shared.JsonLdParsingError(OpenApiUrl url, err)))
+                  |> Result.teeError (fun err -> feedbackAgent.Post(Orn.Registry.Shared.JsonLdParsingError(openApiUrl, err)))
                 return (description, tripleStore)
               }
 
-            let updatedMap =
-              match result with
-              | Ok (serviceInformation, tripleStore) ->
-                  printfn "Loading json-ld into triple store worked for service %s" url
-                  serviceMap |> updateMap (OpenApiUrl url) (Indexed {TripleStore = tripleStore; OpenApiServiceInformation = serviceInformation})
-              | Error msg ->
-                  printfn "Loading json-ld into triple store FAILED for service %s" url
-                  serviceMap |> updateMap (OpenApiUrl url) (Failed msg)
+            let processingInfo = serviceMap |> Map.find openApiUrl
 
-            match updatedMap with
-            | Some map ->
-                serviceMap <- map
-            | None ->
-                printfn "Update of map failed: %s" url
+            match result with
+            | Ok (serviceInformation, tripleStore) ->
+                printfn "Loading json-ld into triple store worked for service %s" url
+                updateServiceMap openApiUrl { processingInfo with Status = Indexed {TripleStore = tripleStore; OpenApiServiceInformation = serviceInformation} }
+            | Error msg ->
+                printfn "Loading json-ld into triple store FAILED for service %s" url
+                updateServiceMap openApiUrl { processingInfo with Status = Failed msg }
+
           with
           | :? System.Net.WebException ->
             printfn "Timeout occured in OpenApi processing agent when processing: %s" url
-            let updatedMap = (serviceMap |> updateMap (OpenApiUrl url) (Failed "Timeout while trying to download swagger definition"))
+            let updatedMap = (serviceMap |> updateMap (OpenApiUrl url) ({ Status = Failed "Timeout while trying to download swagger definition"; RawOpenApi = None; DereferencedOpenApi = None}))
             match updatedMap with
             | Some updated ->
                 serviceMap <- updated
@@ -110,7 +124,7 @@ type OpenApiAgent(feedbackAgent : Orn.Registry.Feedback.FeedbackAgent, cancelTok
       | ReindexFailed ->
           serviceMap <-
             Map.fold (fun state key value ->
-            match value with
+            match value.Status with
              | InProgress -> Map.add key value state
              | Indexed _ -> Map.add key value state
              | Failed _ ->

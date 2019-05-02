@@ -35,9 +35,9 @@ let getCurrentServices (logger : ILogger) : Async<Shared.ActiveServices> =
                      >> (fun indexStatusOption ->
                           match indexStatusOption with
                           | None -> None
-                          | Some OpenApiProcessing.InProgress -> None
-                          | Some (OpenApiProcessing.Failed _) -> None
-                          | Some (OpenApiProcessing.Indexed ornInfo) -> Some { OpenApiServiceInformation = ornInfo.OpenApiServiceInformation } ))
+                          | Some { Status = OpenApiProcessing.InProgress } -> None
+                          | Some { Status = (OpenApiProcessing.Failed _) } -> None
+                          | Some { Status = (OpenApiProcessing.Indexed ornInfo) } -> Some { OpenApiServiceInformation = ornInfo.OpenApiServiceInformation } ))
       |> Seq.toList
 
     let k8sServiceWithOptionalOrnService =
@@ -47,9 +47,9 @@ let getCurrentServices (logger : ILogger) : Async<Shared.ActiveServices> =
                >> (fun indexStatusOption ->
                     match indexStatusOption with
                     | None -> None
-                    | Some OpenApiProcessing.InProgress -> None
-                    | Some (OpenApiProcessing.Failed _) -> None
-                    | Some (OpenApiProcessing.Indexed ornInfo) -> Some ornInfo))
+                    | Some { Status = OpenApiProcessing.InProgress } -> None
+                    | Some { Status = (OpenApiProcessing.Failed _) } -> None
+                    | Some { Status = (OpenApiProcessing.Indexed ornInfo) } -> Some ornInfo))
       |> Seq.zip (k8sServices)
 
     let k8sServicesOnly, ornServices =
@@ -140,7 +140,7 @@ let runSparqlQuery (logger : ILogger) (maybeService : OpenApiUrl option) (query 
     let openApisAndTripleStores =
       ornServices
       |> Map.fold (fun state key value ->
-                    match value with
+                    match value.Status with
                     | InProgress -> state
                     | Failed _ -> state
                     | Indexed serviceInfo -> (key, serviceInfo.OpenApiServiceInformation.Name, serviceInfo.TripleStore) :: state ) []
@@ -211,16 +211,62 @@ let swaggerUiHandler : HttpHandler =
             let services = openApiAgent.ServiceMap
             let registeredService =
               Map.tryFind (OpenApiUrl serviceUri) services
-              |> Option.map (fun serviceIndexingStatus ->
-                  match serviceIndexingStatus with
+              |> Option.bind (fun serviceIndexingStatus ->
+                  match serviceIndexingStatus.Status with
                    | InProgress -> None
-                   | Indexed serviceInfo -> Some serviceInfo
+                   | Indexed serviceInfo -> Some serviceIndexingStatus
                    | Failed _ -> None)
-            let headers = [ FSharp.Data.HttpRequestHeaders.Accept FSharp.Data.HttpContentTypes.Json ]
-            let! openapiContentResult = Async.StartAsTask (SafeAsyncHttp.AsyncHttpTextResult(serviceUri, timeout=System.TimeSpan.FromSeconds(20.0), headers=headers))
-            match openapiContentResult with
-            | Ok openapiContent -> return! htmlView (Orn.Registry.Views.SwaggerUi.swaggerUi openapiContent) next ctx
-            | Error err -> return! Giraffe.HttpStatusCodeHandlers.ServerErrors.INTERNAL_ERROR "Could not retrieve Openapi document" next ctx
+            match registeredService with
+            | Some { RawOpenApi = Some (OpenApiRaw rawOpenApi) } ->
+              return! htmlView (Orn.Registry.Views.SwaggerUi.swaggerUi rawOpenApi) next ctx
+            | _ ->
+              return! Giraffe.HttpStatusCodeHandlers.ServerErrors.INTERNAL_ERROR "Could not retrieve OpenApi for requested service" next ctx
           else
             return! Giraffe.HttpStatusCodeHandlers.RequestErrors.NOT_FOUND "Please specify a valid service url in the service query parameter!" next ctx
         }
+
+let rawOpenApiHandler : HttpHandler =
+  fun next (ctx : Http.HttpContext) ->
+    task {
+      let hasService, serviceUris = ctx.Request.Query.TryGetValue "service"
+      if hasService then
+        let serviceUri = serviceUris.[0]
+        let services = openApiAgent.ServiceMap
+        let registeredService =
+          Map.tryFind (OpenApiUrl serviceUri) services
+          |> Option.bind (fun serviceIndexingStatus ->
+              match serviceIndexingStatus.Status with
+               | InProgress -> None
+               | Indexed serviceInfo -> Some serviceIndexingStatus
+               | Failed _ -> None)
+        match registeredService with
+        | Some { RawOpenApi = Some (OpenApiRaw rawOpenApi) } ->
+          return! Giraffe.HttpStatusCodeHandlers.Successful.ok (text rawOpenApi) next ctx
+        | _ ->
+          return! Giraffe.HttpStatusCodeHandlers.ServerErrors.INTERNAL_ERROR "Could not retrieve OpenApi for requested service" next ctx
+      else
+        return! Giraffe.HttpStatusCodeHandlers.RequestErrors.NOT_FOUND "Please specify a valid service url in the service query parameter!" next ctx
+    }
+
+let dereferencedOpenApiHandler : HttpHandler =
+  fun next (ctx : Http.HttpContext) ->
+    task {
+      let hasService, serviceUris = ctx.Request.Query.TryGetValue "service"
+      if hasService then
+        let serviceUri = serviceUris.[0]
+        let services = openApiAgent.ServiceMap
+        let registeredService =
+          Map.tryFind (OpenApiUrl serviceUri) services
+          |> Option.bind (fun serviceIndexingStatus ->
+              match serviceIndexingStatus.Status with
+               | InProgress -> None
+               | Indexed serviceInfo -> Some serviceIndexingStatus
+               | Failed _ -> None)
+        match registeredService with
+        | Some { DereferencedOpenApi = Some (OpenApiFixedContextEntry dereferencedOpenApi) } ->
+          return! Giraffe.HttpStatusCodeHandlers.Successful.ok (text dereferencedOpenApi) next ctx
+        | _ ->
+          return! Giraffe.HttpStatusCodeHandlers.ServerErrors.INTERNAL_ERROR "Could not retrieve OpenApi for requested service" next ctx
+      else
+        return! Giraffe.HttpStatusCodeHandlers.RequestErrors.NOT_FOUND "Please specify a valid service url in the service query parameter!" next ctx
+    }

@@ -28,7 +28,9 @@ let webApp =
         route "/api/external-services" >=> DELETE >=> removeExternalServiceHandler
         route "/api/services" >=> GET >=> getCurrentServicesHandler
         // route "/applications"
-        route "/openapi" >=> GET >=> swaggerUiHandler
+        route "/swaggerui" >=> GET >=> swaggerUiHandler
+        route "/openapi-raw" >=> GET >=> rawOpenApiHandler
+        route "/oepnapi-dereferenced" >=> GET >=> dereferencedOpenApiHandler
     ]
 
 
