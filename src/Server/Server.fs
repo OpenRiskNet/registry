@@ -7,6 +7,7 @@ open Microsoft.AspNetCore.Builder
 open Microsoft.AspNetCore.Hosting
 open Microsoft.Extensions.Logging
 open Microsoft.Extensions.DependencyInjection
+open Microsoft.Extensions.Configuration
 
 open FSharp.Control.Tasks.V2
 
@@ -33,10 +34,16 @@ let webApp =
         route "/openapi-dereferenced" >=> GET >=> dereferencedOpenApiHandler
     ]
 
+let buildConfig (config : IConfigurationBuilder) =
+    config.SetBasePath(System.IO.Directory.GetCurrentDirectory())
+          .AddYamlFile("appsettings.yml", optional = false, reloadOnChange = true)
+          .AddEnvironmentVariables()
+    |> ignore
 
 let configureApp (app : IApplicationBuilder) =
     app.UseDefaultFiles()
        .UseStaticFiles()
+       .UseForwardedHeaders()
        .UseGiraffe webApp
 
 let configureLogging (builder : ILoggingBuilder) =

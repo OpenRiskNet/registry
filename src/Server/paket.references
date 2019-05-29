@@ -15,3 +15,6 @@ group Server
     Thoth.Json.Net
     Thoth.Json.Giraffe
     FSharp.Interop.NullOptAble
+    Newtonsoft.Json
+    NetEscapades.Configuration.Yaml
+    Microsoft.AspNetCore.HttpOverrides

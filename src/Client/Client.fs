@@ -22,7 +22,21 @@ open Fable.FontAwesome
 open Fulma
 open Fulma
 open System.Drawing
+open Fable.Core
 
+
+
+type IKeycloakPromise<'returnType> =
+  abstract success : ('returnType -> Unit) -> IKeycloakPromise<'returnType>
+  abstract error : (obj -> Unit) -> IKeycloakPromise<'returnType>
+
+type IKeycloakPromiseWrapper<'returnType> =
+  abstract promise : IKeycloakPromise<'returnType>
+
+type IKeycloak =
+  abstract init : Unit -> IKeycloakPromise<bool>
+  abstract login : obj -> Unit
+  abstract token : string
 
 type OntologySearchTerm =
   { Text : string
@@ -76,6 +90,7 @@ type Msg =
 | AddExternalServiceRequestCompleted of Result<Response, exn>
 | RemoveExternalServiceRequestCompleted of Result<Response, exn>
 | SparqlSerivceSelected of string
+| KeycloakInit of Result<bool, obj>
 
 let buildUrl (baseString : string) (parameters : (string * string list) list) : string =
   let allUsedParams = parameters |> List.filter (fun (_, values) -> not (List.isEmpty values))
@@ -179,7 +194,8 @@ let testSparqlResult =
       Result = BindingResult { Variables = ["subject"; "predicate"; "object"]; ResultValues = [["Lazar REST Service^^http://www.w3.org/2001/XMLSchema#string"; "identity"; "Lazar REST Service^^http://www.w3.org/2001/XMLSchema#string"]]}}]
 
 
-let init () : Model * Cmd<Msg> =
+let init (keycloak : IKeycloak) : Model * Cmd<Msg> =
+
   let localDebugMode = false
   let initialServices, initialCommand, initialResults =
     if localDebugMode
@@ -235,6 +251,12 @@ let update (msg : Msg) (model : Model) : Model * Cmd<Msg> =
       Fable.Import.JS.console.log("Error:", [err])
       model, Cmd.none
     | SparqlSerivceSelected newSelection -> { model with SelectedSparqlService = newSelection }, Cmd.none
+    | KeycloakInit (Ok result) ->
+      Fable.Import.JS.console.log(sprintf "User is logged in: %b" result)
+      model, Cmd.none
+    | KeycloakInit (Error err) ->
+      Fable.Import.JS.console.log("Error: ", err)
+      model, Cmd.none
 
   model', cmd
 
@@ -459,12 +481,34 @@ let view (model : Model) (dispatch : Msg -> unit) =
       div [] tabContent
     ]
 
+open Fable.Core
+open Fable.Core.JsInterop
+
+
+[<Emit("keycloak")>]
+let keycloak : IKeycloak = jsNative
+
+let keycloakInit (keycloak : IKeycloak) initialModel =
+  let sub dispatch =
+    let sendInitOk(isAuthenticated : bool) =
+      dispatch(KeycloakInit (Ok isAuthenticated))
+      if not isAuthenticated then
+        keycloak.login() |> ignore
+    let sendInitError(err) =
+      dispatch(KeycloakInit(Error(err)))
+    keycloak.init().success(sendInitOk).error(sendInitError) |> ignore
+  Cmd.ofSub sub
+
+
+let isAuthenticated : bool = (keycloak?authenticated)
+
 #if DEBUG
 open Elmish.Debug
 open Elmish.HMR
 #endif
 
 Program.mkProgram init update view
+|> Program.withSubscription (keycloakInit keycloak)
 #if DEBUG
 |> Program.withConsoleTrace
 |> Program.withHMR
@@ -473,4 +517,4 @@ Program.mkProgram init update view
 #if DEBUG
 |> Program.withDebugger
 #endif
-|> Program.run
+|> Program.runWith keycloak

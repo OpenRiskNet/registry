@@ -17,6 +17,9 @@ group Server
     nuget Thoth.Json.Net
     nuget Thoth.Json.Giraffe
     nuget FSharp.Interop.NullOptAble
+    nuget Newtonsoft.Json
+    nuget NetEscapades.Configuration.Yaml
+    nuget Microsoft.AspNetCore.HttpOverrides
 
     source https://baget.cloud.douglasconnect.com/v3/index.json
     nuget DouglasConnect

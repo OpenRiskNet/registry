@@ -224,7 +224,18 @@ let swaggerUiHandler : HttpHandler =
           else
             return! Giraffe.HttpStatusCodeHandlers.RequestErrors.NOT_FOUND "Please specify a valid service url in the service query parameter!" next ctx
         }
-
+let prettifyJson (jsonString : string) : Result<string, string> =
+  try
+    use reader = new System.IO.StringReader(jsonString)
+    use writer = new System.IO.StringWriter()
+    let jsonReader = new Newtonsoft.Json.JsonTextReader(reader)
+    let jsonWriter = new Newtonsoft.Json.JsonTextWriter(writer)
+    jsonWriter.Formatting <- Newtonsoft.Json.Formatting.Indented
+    jsonWriter.WriteToken(jsonReader)
+    writer.ToString() |> Ok
+  with
+  | ex ->
+    Error (ex.Message)
 let rawOpenApiHandler : HttpHandler =
   fun next (ctx : Http.HttpContext) ->
     task {
@@ -241,7 +252,13 @@ let rawOpenApiHandler : HttpHandler =
                | Failed _ -> None)
         match registeredService with
         | Some { RawOpenApi = Some (OpenApiRaw rawOpenApi) } ->
-          return! Giraffe.HttpStatusCodeHandlers.Successful.ok (text rawOpenApi) next ctx
+            let prettyJsonResult = prettifyJson rawOpenApi
+            match prettyJsonResult with
+            | Ok prettyJson ->
+              ctx.SetHttpHeader "Content-Type" "application/json"
+              return! Giraffe.HttpStatusCodeHandlers.Successful.ok (text prettyJson) next ctx
+            | Error err ->
+              return! Giraffe.HttpStatusCodeHandlers.Successful.ok (text (rawOpenApi)) next ctx
         | _ ->
           return! Giraffe.HttpStatusCodeHandlers.ServerErrors.INTERNAL_ERROR "Could not retrieve OpenApi for requested service" next ctx
       else
@@ -264,8 +281,13 @@ let dereferencedOpenApiHandler : HttpHandler =
                | Failed _ -> None)
         match registeredService with
         | Some { DereferencedOpenApi = Some (OpenApiFixedContextEntry dereferencedOpenApi) } ->
-          ctx.SetHttpHeader "Content-Type" "application/json"
-          return! Giraffe.HttpStatusCodeHandlers.Successful.ok (text dereferencedOpenApi) next ctx
+          let prettyJsonResult = prettifyJson dereferencedOpenApi
+          match prettyJsonResult with
+          | Ok prettyJson ->
+            ctx.SetHttpHeader "Content-Type" "application/json"
+            return! Giraffe.HttpStatusCodeHandlers.Successful.ok (text prettyJson) next ctx
+          | Error err ->
+            return! Giraffe.HttpStatusCodeHandlers.Successful.ok (text dereferencedOpenApi) next ctx
         | _ ->
           return! Giraffe.HttpStatusCodeHandlers.ServerErrors.INTERNAL_ERROR "Could not retrieve OpenApi for requested service" next ctx
       else
