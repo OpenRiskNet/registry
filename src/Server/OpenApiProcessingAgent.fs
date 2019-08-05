@@ -28,6 +28,10 @@ type OpenApiProcessingInformation =
     RawOpenApi : OpenApiRaw option
     DereferencedOpenApi : OpenApiFixedContextEntry option
     }
+
+type IOpenApiProcessingAgent =
+  Orn.Registry.IAgent<Map<OpenApiUrl,OpenApiProcessingInformation>, Message>
+
 let updateMap key newval map =
   let mutable found = false
   let newMap =
@@ -44,7 +48,7 @@ let updateMap key newval map =
     None
 
 
-type OpenApiAgent(feedbackAgent : Orn.Registry.Feedback.FeedbackAgent, cancelToken : CancellationToken) =
+type OpenApiAgent(feedbackAgent : IAgent<seq<TimestampedFeedback>, Feedback>, cancelToken : CancellationToken) =
   let mutable serviceMap : Map<OpenApiUrl,OpenApiProcessingInformation> = Map []
 
   let updateServiceMap key newval =
@@ -58,7 +62,7 @@ type OpenApiAgent(feedbackAgent : Orn.Registry.Feedback.FeedbackAgent, cancelTok
 
 
 
-  let rec agentFunction ((feedbackAgent : Orn.Registry.Feedback.FeedbackAgent)) (agent : Agent<Message>) =
+  let rec agentFunction (feedbackAgent : Feedback.IFeedbackAgent) (agent : Agent<Message>) =
     async {
 
       let! message = agent.Receive()
@@ -137,6 +141,6 @@ type OpenApiAgent(feedbackAgent : Orn.Registry.Feedback.FeedbackAgent, cancelTok
 
   let agent = Agent.Start(agentFunction feedbackAgent, cancelToken)
 
-  member this.ServiceMap = serviceMap
-
-  member this.SendMessage (msg : Message) = agent.Post msg
+  interface IOpenApiProcessingAgent with
+    member this.Post(message : Message) = agent.Post(message)
+    member this.ReadonlyState = serviceMap //TODO: if there is a weird error that no services sho up then the reason could be that this is a closure which I hope it is not

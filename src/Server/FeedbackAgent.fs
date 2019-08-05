@@ -4,6 +4,8 @@ open Orn.Registry.BasicTypes
 open Orn.Registry.Shared
 open System.Threading
 
+type IFeedbackAgent = IAgent<seq<TimestampedFeedback>, Feedback>
+
 type FeedbackAgent(cancelToken : CancellationToken) =
   let capacity = 50
   let log = System.Collections.Generic.Queue<TimestampedFeedback>()
@@ -22,9 +24,11 @@ type FeedbackAgent(cancelToken : CancellationToken) =
 
   let Agent = MailboxProcessor.Start(AgentFunction, cancelToken)
 
-  member this.Post(feedback : Feedback) = Agent.Post(feedback)
-
   member this.Log =
     lock (log) (fun _ ->
       (log |> List.ofSeq) :> seq<TimestampedFeedback>
     )
+
+  interface IFeedbackAgent with
+    member this.Post(feedback : Feedback) = Agent.Post(feedback)
+    member this.ReadonlyState = this.Log

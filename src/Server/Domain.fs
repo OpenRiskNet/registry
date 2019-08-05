@@ -21,10 +21,10 @@ let getCurrentServices (logger : ILogger) : Async<Shared.ActiveServices> =
     logger.LogInformation "Entered getCurrentServices"
 
     let k8sServices =
-      k8sUpdateAgent.Services
+      (k8sUpdateAgent :> Kubernetes.IKubernetesAgent).ReadonlyState
 
     let ornServices =
-      openApiAgent.ServiceMap
+      (openApiAgent :> IOpenApiProcessingAgent).ReadonlyState
 
     let externalServices =
       ExternalServices
@@ -94,7 +94,7 @@ let getCurrentServicesHandler : HttpHandler =
       task {
         let logger = ctx.GetLogger()
         let! services = getCurrentServices(logger)
-        return! Giraffe.HttpStatusCodeHandlers.Successful.ok (json services) next ctx
+        return! Successful.ok (json services) next ctx
       }
 
 
@@ -105,12 +105,12 @@ let addExternalServiceHandler : HttpHandler =
       logger.LogInformation("Adding external service")
       let hasService, service = ctx.Request.Query.TryGetValue "service"
       if not hasService then
-        return! Giraffe.HttpStatusCodeHandlers.RequestErrors.BAD_REQUEST (text "Could not find query parameter 'service'") next ctx
+        return! RequestErrors.BAD_REQUEST (text "Could not find query parameter 'service'") next ctx
       else
         logger.LogInformation("Adding service: ", service)
-        do openApiAgent.SendMessage(Orn.Registry.OpenApiProcessing.AddToIndex (OpenApiUrl (service.[0])))
+        do (openApiAgent :> IOpenApiProcessingAgent).Post(AddToIndex (OpenApiUrl (service.[0])))
         ExternalServices <- Set.add service.[0] ExternalServices
-        return! Giraffe.HttpStatusCodeHandlers.Successful.NO_CONTENT next ctx
+        return! Successful.NO_CONTENT next ctx
     }
 
 
@@ -121,12 +121,12 @@ let removeExternalServiceHandler : HttpHandler =
       logger.LogInformation("Adding external service")
       let hasService, service = ctx.Request.Query.TryGetValue "service"
       if not hasService then
-        return! Giraffe.HttpStatusCodeHandlers.RequestErrors.BAD_REQUEST (text "Could not find query parameter 'service'") next ctx
+        return! RequestErrors.BAD_REQUEST (text "Could not find query parameter 'service'") next ctx
       else
         logger.LogInformation("Removing service: ", service)
-        do openApiAgent.SendMessage(Orn.Registry.OpenApiProcessing.RemoveFromIndex (OpenApiUrl (service.[0])))
+        do (openApiAgent :> IOpenApiProcessingAgent).Post(Orn.Registry.OpenApiProcessing.RemoveFromIndex (OpenApiUrl (service.[0])))
         ExternalServices <- Set.remove service.[0] ExternalServices
-        return! Giraffe.HttpStatusCodeHandlers.Successful.NO_CONTENT next ctx
+        return! Successful.NO_CONTENT next ctx
     }
 
 
@@ -135,7 +135,7 @@ let runSparqlQuery (logger : ILogger) (maybeService : OpenApiUrl option) (query 
     let! parsedQuery = createSparqlQuery query
 
     let ornServices =
-        openApiAgent.ServiceMap
+        (openApiAgent :> IOpenApiProcessingAgent).ReadonlyState
 
     let openApisAndTripleStores =
       ornServices
@@ -196,9 +196,9 @@ let runSparqlQueryHandler : HttpHandler =
         let result = runSparqlQuery logger service (query.[0])
         match result with
         | Ok resultTriplesForServices -> // TODO: serialize this properly
-            return! Giraffe.HttpStatusCodeHandlers.Successful.ok (json resultTriplesForServices) next ctx
+            return! Successful.ok (json resultTriplesForServices) next ctx
         | Error error ->
-            return! Giraffe.HttpStatusCodeHandlers.ServerErrors.INTERNAL_ERROR (text error) next ctx
+            return! ServerErrors.INTERNAL_ERROR (text error) next ctx
     }
 
 
@@ -208,7 +208,7 @@ let swaggerUiHandler : HttpHandler =
           let hasService, serviceUris = ctx.Request.Query.TryGetValue "service"
           if hasService then
             let serviceUri = serviceUris.[0]
-            let services = openApiAgent.ServiceMap
+            let services = (openApiAgent :> IOpenApiProcessingAgent).ReadonlyState
             let registeredService =
               Map.tryFind (OpenApiUrl serviceUri) services
               |> Option.bind (fun serviceIndexingStatus ->
@@ -231,7 +231,7 @@ let rawOpenApiHandler : HttpHandler =
       let hasService, serviceUris = ctx.Request.Query.TryGetValue "service"
       if hasService then
         let serviceUri = serviceUris.[0]
-        let services = openApiAgent.ServiceMap
+        let services = (openApiAgent :> IOpenApiProcessingAgent).ReadonlyState
         let registeredService =
           Map.tryFind (OpenApiUrl serviceUri) services
           |> Option.bind (fun serviceIndexingStatus ->
@@ -254,7 +254,7 @@ let dereferencedOpenApiHandler : HttpHandler =
       let hasService, serviceUris = ctx.Request.Query.TryGetValue "service"
       if hasService then
         let serviceUri = serviceUris.[0]
-        let services = openApiAgent.ServiceMap
+        let services = (openApiAgent :> IOpenApiProcessingAgent).ReadonlyState
         let registeredService =
           Map.tryFind (OpenApiUrl serviceUri) services
           |> Option.bind (fun serviceIndexingStatus ->

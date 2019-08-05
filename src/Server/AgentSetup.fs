@@ -21,11 +21,7 @@ let cancelTokenSource = new CancellationTokenSource()
 let feedbackAgent = Orn.Registry.Feedback.FeedbackAgent(cancelTokenSource.Token)
 let openApiAgent = OpenApiProcessing.OpenApiAgent(feedbackAgent, cancelTokenSource.Token)
 
-let k8sUpdateAgent = Kubernetes.UpdateAgent(feedbackAgent, k8sApiUrl, cancelTokenSource.Token)
-k8sUpdateAgent.ServiceAdded
-|> Event.add (openApiAgent.SendMessage << OpenApiProcessing.AddToIndex)
-k8sUpdateAgent.ServiceRemoved
-|> Event.add (openApiAgent.SendMessage << OpenApiProcessing.RemoveFromIndex)
+let (k8sUpdateAgent : Kubernetes.UpdateAgent) = Kubernetes.UpdateAgent(feedbackAgent, openApiAgent, k8sApiUrl, cancelTokenSource.Token)
 
 
 let createRefreshAgent (action : Unit -> Unit) (timeoutMs : int) : MailboxProcessor<Unit> = Agent.Start((fun agent ->
@@ -39,8 +35,14 @@ let createRefreshAgent (action : Unit -> Unit) (timeoutMs : int) : MailboxProces
   sleepRefreshLoop()
   ), cancelTokenSource.Token)
 
-let kubernetesServicesRefreshAgent = createRefreshAgent k8sUpdateAgent.TriggerPull 2000
-let reindexFailedServicesRefreshAgent = createRefreshAgent (fun _ -> openApiAgent.SendMessage(OpenApiProcessing.ReindexFailed)) 30_000
+let kubernetesServicesRefreshAgent =
+  createRefreshAgent
+    ((k8sUpdateAgent :> IAgent<Set<Kubernetes.K8sService>, unit>).Post)
+    2000
+let reindexFailedServicesRefreshAgent =
+  createRefreshAgent
+    (fun _ -> (openApiAgent :> Orn.Registry.IAgent<Map<Shared.OpenApiUrl,OpenApiProcessing.OpenApiProcessingInformation>, OpenApiProcessing.Message>).Post(OpenApiProcessing.ReindexFailed))
+    30_000
 
 // TODO: Add giving back the indexed openrisknet servcies from openApiAgent as well
 //       Add frontend second list of openrisknet services with annotation as first list
