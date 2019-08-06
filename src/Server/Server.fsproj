@@ -14,6 +14,7 @@
         <Compile Include="DereferencingVisitor.fs" />
         <Compile Include="OpenApiTransformer.fs" />
         <Compile Include="JsonLdParsing.fs" />
+        <Compile Include="OpenApiServicesAgent.fs" />
         <Compile Include="OpenApiProcessingAgent.fs" />
         <Compile Include="Kubernetes.fs" />
         <Compile Include="AgentSetup.fs" />

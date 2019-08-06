@@ -24,7 +24,7 @@ let getCurrentServices (logger : ILogger) : Async<Shared.ActiveServices> =
       (k8sUpdateAgent :> Kubernetes.IKubernetesAgent).ReadonlyState
 
     let ornServices =
-      (openApiAgent :> IOpenApiProcessingAgent).ReadonlyState
+      (openApiServicesAgent :> OpenApiServicesAgent.IOpenApiServicesAgent).ReadonlyState
 
     let externalServices =
       ExternalServices
@@ -35,9 +35,9 @@ let getCurrentServices (logger : ILogger) : Async<Shared.ActiveServices> =
                      >> (fun indexStatusOption ->
                           match indexStatusOption with
                           | None -> None
-                          | Some { Status = OpenApiProcessing.InProgress } -> None
-                          | Some { Status = (OpenApiProcessing.Failed _) } -> None
-                          | Some { Status = (OpenApiProcessing.Indexed ornInfo) } -> Some { OpenApiServiceInformation = ornInfo.OpenApiServiceInformation } ))
+                          | Some { Status = OpenApiServicesAgent.InProgress } -> None
+                          | Some { Status = (OpenApiServicesAgent.Failed _) } -> None
+                          | Some { Status = (OpenApiServicesAgent.Indexed ornInfo) } -> Some { OpenApiServiceInformation = ornInfo.OpenApiServiceInformation } ))
       |> Seq.toList
 
     let k8sServiceWithOptionalOrnService =
@@ -47,9 +47,9 @@ let getCurrentServices (logger : ILogger) : Async<Shared.ActiveServices> =
                >> (fun indexStatusOption ->
                     match indexStatusOption with
                     | None -> None
-                    | Some { Status = OpenApiProcessing.InProgress } -> None
-                    | Some { Status = (OpenApiProcessing.Failed _) } -> None
-                    | Some { Status = (OpenApiProcessing.Indexed ornInfo) } -> Some ornInfo))
+                    | Some { Status = OpenApiServicesAgent.InProgress } -> None
+                    | Some { Status = (OpenApiServicesAgent.Failed _) } -> None
+                    | Some { Status = (OpenApiServicesAgent.Indexed ornInfo) } -> Some ornInfo))
       |> Seq.zip (k8sServices)
 
     let k8sServicesOnly, ornServices =
@@ -108,7 +108,7 @@ let addExternalServiceHandler : HttpHandler =
         return! RequestErrors.BAD_REQUEST (text "Could not find query parameter 'service'") next ctx
       else
         logger.LogInformation("Adding service: ", service)
-        do (openApiAgent :> IOpenApiProcessingAgent).Post(AddToIndex (OpenApiUrl (service.[0])))
+        do (openApiProcessingAgent :> IOpenApiProcessingAgent).Post(IndexNewUrl (OpenApiUrl (service.[0])))
         ExternalServices <- Set.add service.[0] ExternalServices
         return! Successful.NO_CONTENT next ctx
     }
@@ -124,7 +124,7 @@ let removeExternalServiceHandler : HttpHandler =
         return! RequestErrors.BAD_REQUEST (text "Could not find query parameter 'service'") next ctx
       else
         logger.LogInformation("Removing service: ", service)
-        do (openApiAgent :> IOpenApiProcessingAgent).Post(Orn.Registry.OpenApiProcessing.RemoveFromIndex (OpenApiUrl (service.[0])))
+        do (openApiProcessingAgent :> IOpenApiProcessingAgent).Post(RemoveUrl (OpenApiUrl (service.[0])))
         ExternalServices <- Set.remove service.[0] ExternalServices
         return! Successful.NO_CONTENT next ctx
     }
@@ -135,15 +135,15 @@ let runSparqlQuery (logger : ILogger) (maybeService : OpenApiUrl option) (query 
     let! parsedQuery = createSparqlQuery query
 
     let ornServices =
-        (openApiAgent :> IOpenApiProcessingAgent).ReadonlyState
+        (openApiServicesAgent :> OpenApiServicesAgent.IOpenApiServicesAgent).ReadonlyState
 
     let openApisAndTripleStores =
       ornServices
       |> Map.fold (fun state key value ->
                     match value.Status with
-                    | InProgress -> state
-                    | Failed _ -> state
-                    | Indexed serviceInfo -> (key, serviceInfo.OpenApiServiceInformation.Name, serviceInfo.TripleStore) :: state ) []
+                    | OpenApiServicesAgent.InProgress -> state
+                    | OpenApiServicesAgent.Failed _ -> state
+                    | OpenApiServicesAgent.Indexed serviceInfo -> (key, serviceInfo.OpenApiServiceInformation.Name, serviceInfo.TripleStore) :: state ) []
 
     // log info about operations
 
@@ -208,14 +208,14 @@ let swaggerUiHandler : HttpHandler =
           let hasService, serviceUris = ctx.Request.Query.TryGetValue "service"
           if hasService then
             let serviceUri = serviceUris.[0]
-            let services = (openApiAgent :> IOpenApiProcessingAgent).ReadonlyState
+            let services = (openApiServicesAgent :> OpenApiServicesAgent.IOpenApiServicesAgent).ReadonlyState
             let registeredService =
               Map.tryFind (OpenApiUrl serviceUri) services
               |> Option.bind (fun serviceIndexingStatus ->
                   match serviceIndexingStatus.Status with
-                   | InProgress -> None
-                   | Indexed serviceInfo -> Some serviceIndexingStatus
-                   | Failed _ -> None)
+                   | OpenApiServicesAgent.InProgress -> None
+                   | OpenApiServicesAgent.Indexed serviceInfo -> Some serviceIndexingStatus
+                   | OpenApiServicesAgent.Failed _ -> None)
             match registeredService with
             | Some { RawOpenApi = Some (OpenApiRaw rawOpenApi) } ->
               return! htmlView (Orn.Registry.Views.SwaggerUi.swaggerUi rawOpenApi) next ctx
@@ -231,14 +231,14 @@ let rawOpenApiHandler : HttpHandler =
       let hasService, serviceUris = ctx.Request.Query.TryGetValue "service"
       if hasService then
         let serviceUri = serviceUris.[0]
-        let services = (openApiAgent :> IOpenApiProcessingAgent).ReadonlyState
+        let services = (openApiServicesAgent :> OpenApiServicesAgent.IOpenApiServicesAgent).ReadonlyState
         let registeredService =
           Map.tryFind (OpenApiUrl serviceUri) services
           |> Option.bind (fun serviceIndexingStatus ->
               match serviceIndexingStatus.Status with
-               | InProgress -> None
-               | Indexed serviceInfo -> Some serviceIndexingStatus
-               | Failed _ -> None)
+               | OpenApiServicesAgent.InProgress -> None
+               | OpenApiServicesAgent.Indexed serviceInfo -> Some serviceIndexingStatus
+               | OpenApiServicesAgent.Failed _ -> None)
         match registeredService with
         | Some { RawOpenApi = Some (OpenApiRaw rawOpenApi) } ->
           return! Giraffe.HttpStatusCodeHandlers.Successful.ok (text rawOpenApi) next ctx
@@ -254,14 +254,14 @@ let dereferencedOpenApiHandler : HttpHandler =
       let hasService, serviceUris = ctx.Request.Query.TryGetValue "service"
       if hasService then
         let serviceUri = serviceUris.[0]
-        let services = (openApiAgent :> IOpenApiProcessingAgent).ReadonlyState
+        let services = (openApiServicesAgent :> OpenApiServicesAgent.IOpenApiServicesAgent).ReadonlyState
         let registeredService =
           Map.tryFind (OpenApiUrl serviceUri) services
           |> Option.bind (fun serviceIndexingStatus ->
               match serviceIndexingStatus.Status with
-               | InProgress -> None
-               | Indexed serviceInfo -> Some serviceIndexingStatus
-               | Failed _ -> None)
+               | OpenApiServicesAgent.InProgress -> None
+               | OpenApiServicesAgent.Indexed serviceInfo -> Some serviceIndexingStatus
+               | OpenApiServicesAgent.Failed _ -> None)
         match registeredService with
         | Some { DereferencedOpenApi = Some (OpenApiFixedContextEntry dereferencedOpenApi) } ->
           ctx.SetHttpHeader "Content-Type" "application/json"

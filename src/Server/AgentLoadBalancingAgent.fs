@@ -17,7 +17,7 @@ type AgentLoadBalancingAgent<'state, 'message, 'agent when 'agent :> IAgent<'sta
             let! msg = agent.Receive()
             Agents.[nextAgentIndex].Post(msg)
             nextAgentIndex <- (nextAgentIndex + 1) % (Agents.Length)
-            ()
+            do! agentFunction agent
         }
 
     let agent = MailboxProcessor.Start(agentFunction, cancelToken)

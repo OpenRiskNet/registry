@@ -115,7 +115,7 @@ type UpdateAgent(feedbackAgent : Feedback.IFeedbackAgent,
               let urls = rawurls.Split('|') |> Array.map (fun url -> url.Trim())
               printfn "OpenRiskNet definition found for service %s" service.Name
               for url in urls do
-                processingAgent.Post (OpenApiProcessing.AddToIndex (OpenApiUrl url))
+                processingAgent.Post (OpenApiProcessing.IndexNewUrl (OpenApiUrl url))
           | None -> printfn "No openrisknet definition given for %s" service.Name
 
         for service in removedServices do
@@ -126,7 +126,7 @@ type UpdateAgent(feedbackAgent : Feedback.IFeedbackAgent,
           | Some rawurls ->
             let urls = rawurls.Split('|') |> Array.map (fun url -> url.Trim())
             for url in urls do
-              processingAgent.Post (OpenApiProcessing.RemoveFromIndex( OpenApiUrl url))
+              processingAgent.Post (OpenApiProcessing.RemoveUrl( OpenApiUrl url))
           | None -> ()
       with
       | ex -> printfn "Excption occured in Kubernetes Agent %O" ex
