@@ -9,6 +9,7 @@
         <Compile Include="Views\SwaggerUi.fs" />
         <Compile Include="BasicTypes.fs" />
         <Compile Include="IAgent.fs" />
+        <Compile Include="AgentLoadBalancingAgent.fs" />
         <Compile Include="FeedbackAgent.fs" />
         <Compile Include="DereferencingVisitor.fs" />
         <Compile Include="OpenApiTransformer.fs" />

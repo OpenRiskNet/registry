@@ -32,8 +32,8 @@ type K8sService =
 type IKubernetesAgent = Orn.Registry.IAgent<Set<K8sService>, unit>
 
 
-type UpdateAgent(feedbackAgent : IAgent<seq<TimestampedFeedback>, Feedback>,
-                 processingAgent : Orn.Registry.IAgent<Map<OpenApiUrl,OpenApiProcessing.OpenApiProcessingInformation>, OpenApiProcessing.Message>,
+type UpdateAgent(feedbackAgent : Feedback.IFeedbackAgent,
+                 processingAgent : OpenApiProcessing.IOpenApiProcessingAgent,
                  k8sApiUrl : string,
                  cancelToken : CancellationToken) =
   let k8sconfig =
