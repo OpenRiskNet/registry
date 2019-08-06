@@ -217,7 +217,7 @@ let swaggerUiHandler : HttpHandler =
                    | OpenApiServicesAgent.Indexed serviceInfo -> Some serviceIndexingStatus
                    | OpenApiServicesAgent.Failed _ -> None)
             match registeredService with
-            | Some { RawOpenApi = Some (OpenApiRaw rawOpenApi) } ->
+            | Some { OpenApiRetrievalInformation = Some {OpenApiString = OpenApiRaw rawOpenApi} } ->
               return! htmlView (Orn.Registry.Views.SwaggerUi.swaggerUi rawOpenApi) next ctx
             | _ ->
               return! Giraffe.HttpStatusCodeHandlers.ServerErrors.INTERNAL_ERROR "Could not retrieve OpenApi for requested service" next ctx
@@ -240,7 +240,7 @@ let rawOpenApiHandler : HttpHandler =
                | OpenApiServicesAgent.Indexed serviceInfo -> Some serviceIndexingStatus
                | OpenApiServicesAgent.Failed _ -> None)
         match registeredService with
-        | Some { RawOpenApi = Some (OpenApiRaw rawOpenApi) } ->
+        | Some { OpenApiRetrievalInformation = Some {OpenApiString = OpenApiRaw rawOpenApi} } ->
           return! Giraffe.HttpStatusCodeHandlers.Successful.ok (text rawOpenApi) next ctx
         | _ ->
           return! Giraffe.HttpStatusCodeHandlers.ServerErrors.INTERNAL_ERROR "Could not retrieve OpenApi for requested service" next ctx

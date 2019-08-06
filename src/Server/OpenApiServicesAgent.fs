@@ -4,6 +4,7 @@ open Orn.Registry.Shared
 open Orn.Registry.BasicTypes
 type CancellationToken = System.Threading.CancellationToken
 
+
 type OpenRiskNetServiceInfo =
     { TripleStore : VDS.RDF.TripleStore
       OpenApiServiceInformation : OpenApiServiceInformation
@@ -14,9 +15,14 @@ type TripleIndexingStatus =
 | Indexed of OpenRiskNetServiceInfo
 | Failed of string
 
+type OpenApiRetrievalInformation =
+    { OpenApiString : OpenApiRaw
+      RetrievalTime : System.DateTimeOffset
+      Hash : byte[] }
+
 type OpenApiProcessingInformation =
     { Status : TripleIndexingStatus
-      RawOpenApi : OpenApiRaw option
+      OpenApiRetrievalInformation : OpenApiRetrievalInformation option
       DereferencedOpenApi : OpenApiFixedContextEntry option
       }
 

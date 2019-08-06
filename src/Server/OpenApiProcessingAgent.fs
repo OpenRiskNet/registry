@@ -24,13 +24,13 @@ type OpenApiProcessingAgent(feedbackAgent : Feedback.IFeedbackAgent, servicesAge
       let makeTuple a b = (a,b)
       match message with
       | IndexNewUrl ((OpenApiUrl url) as openApiUrl) ->
-          let mutable (processingInfo : OpenApiProcessingInformation) = { Status = InProgress; RawOpenApi = None; DereferencedOpenApi = None }
+          let mutable (processingInfo : OpenApiProcessingInformation) = { Status = InProgress; OpenApiRetrievalInformation = None; DereferencedOpenApi = None }
 
           let updateProcessingInfo (info : OpenApiProcessingInformation) =
             processingInfo <- info
             servicesAgent.Post(AddService (openApiUrl, info))
 
-          updateProcessingInfo { Status = InProgress; RawOpenApi = None; DereferencedOpenApi = None }
+          updateProcessingInfo { Status = InProgress; OpenApiRetrievalInformation = None; DereferencedOpenApi = None }
 
           try
             let! result =
@@ -41,7 +41,14 @@ type OpenApiProcessingAgent(feedbackAgent : Feedback.IFeedbackAgent, servicesAge
                   SafeAsyncHttp.AsyncHttpTextResult(url, timeout=System.TimeSpan.FromSeconds(20.0), headers=headers)
                   |> AsyncResult.mapError (fun err -> err.ToString())
                   |> AsyncResult.teeError (fun _ -> feedbackAgent.Post(Orn.Registry.Shared.OpenApiDownloadFailed(openApiUrl)))
-                updateProcessingInfo { Status = InProgress; RawOpenApi = Some (OpenApiRaw openapistring ); DereferencedOpenApi = None}
+                use hasher = System.Security.Cryptography.SHA256.Create()
+                let hash = hasher.ComputeHash(System.Text.Encoding.UTF8.GetBytes(openapistring : string) : byte[])
+                let retrievalInfo =
+                  { OpenApiString = OpenApiRaw openapistring
+                    RetrievalTime = System.DateTimeOffset.UtcNow
+                    Hash = hash
+                    }
+                updateProcessingInfo { Status = InProgress; OpenApiRetrievalInformation = Some (retrievalInfo ); DereferencedOpenApi = None}
                 printfn "Downloading worked, processing..."
 
                 let retrievedAt = System.DateTime.UtcNow
@@ -54,7 +61,7 @@ type OpenApiProcessingAgent(feedbackAgent : Feedback.IFeedbackAgent, servicesAge
                 let! jsonld =
                   fixOrnJsonLdContext openapi
                   |> Result.teeError (fun err -> feedbackAgent.Post(JsonLdParsingError(openApiUrl, err)))
-                updateProcessingInfo {Status = InProgress; RawOpenApi = Some (OpenApiRaw openapistring); DereferencedOpenApi = Some (OpenApiFixedContextEntry (jsonld.Unwrap()))}
+                updateProcessingInfo {processingInfo with DereferencedOpenApi = Some (OpenApiFixedContextEntry (jsonld.Unwrap()))}
                 let! tripleStore =
                   loadJsonLdIntoTripleStore jsonld
                   |> Result.teeError (fun err -> feedbackAgent.Post(JsonLdParsingError(openApiUrl, err)))
@@ -74,7 +81,7 @@ type OpenApiProcessingAgent(feedbackAgent : Feedback.IFeedbackAgent, servicesAge
           with
           | :? System.Net.WebException ->
             printfn "Timeout occured in OpenApi processing agent when processing: %s" url
-            servicesAgent.Post(AddService (openApiUrl,({ Status = Failed "Timeout while trying to download swagger definition"; RawOpenApi = None; DereferencedOpenApi = None})))
+            servicesAgent.Post(AddService (openApiUrl,({ Status = Failed "Timeout while trying to download swagger definition"; OpenApiRetrievalInformation = None; DereferencedOpenApi = None})))
 
           | ex ->
             feedbackAgent.Post(JsonLdParsingError(OpenApiUrl url, ex.ToString()))
