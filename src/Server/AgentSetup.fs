@@ -21,7 +21,7 @@ let cancelTokenSource = new CancellationTokenSource()
 let feedbackAgent = Orn.Registry.Feedback.FeedbackAgent(cancelTokenSource.Token)
 let openApiServicesAgent = OpenApiServicesAgent.OpenRiskNetServicesAgent(cancelTokenSource.Token)
 let processingAgents =
-  seq {1..19}
+  seq {1..19} // create 19 processing agents - prime numbers are probably better since we do simple round robin
   |> Seq.map (fun _ -> OpenApiProcessing.OpenApiProcessingAgent(feedbackAgent, openApiServicesAgent, cancelTokenSource.Token) :> OpenApiProcessing.IOpenApiProcessingAgent)
 let (openApiProcessingAgent : AgentLoadBalancing.AgentLoadBalancingAgent<bool, OpenApiProcessing.ProcessingMessage, OpenApiProcessing.IOpenApiProcessingAgent>) =
   AgentLoadBalancing.AgentLoadBalancingAgent(processingAgents, (fun _ _ -> true), cancelTokenSource.Token)
