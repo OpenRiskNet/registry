@@ -5,9 +5,17 @@ open Orn.Registry
 open Orn.Registry.BasicTypes
 type CancellationToken = System.Threading.CancellationToken
 
-type IAgentLoadBalancingAgent<'state, 'message> = IAgent<'state seq, 'message>
+type IAgentLoadBalancingAgent<'state, 'message> = IAgent<'state, 'message>
 
-type AgentLoadBalancingAgent<'state, 'message, 'agent when 'agent :> IAgent<'state, 'message>>(agents : IAgent<'state, 'message> seq, cancelToken : CancellationToken) =
+
+type AgentLoadBalancingAgent<'state, 'message, 'agent when 'agent :> IAgent<'state, 'message>>
+    (agents : IAgent<'state, 'message> seq,
+    // combine two state instances into one - required to be able to merge the
+    // results of all the agents into one result value without changing the state
+    // type to a list so that this agent can be used as a drop-in
+    // In Haskell this would be Semigroup.mappend
+     mergeStatesFn : ('state -> 'state -> 'state),
+     cancelToken : CancellationToken) =
     let Agents = Array.ofSeq agents
 
     let mutable nextAgentIndex = 0
@@ -23,5 +31,5 @@ type AgentLoadBalancingAgent<'state, 'message, 'agent when 'agent :> IAgent<'sta
     let agent = MailboxProcessor.Start(agentFunction, cancelToken)
 
     interface IAgentLoadBalancingAgent<'state, 'message> with
-        member this.ReadonlyState = Agents |> Seq.map (fun agent -> agent.ReadonlyState)
+        member this.ReadonlyState = Agents |> Seq.map (fun agent -> agent.ReadonlyState) |> Seq.reduce mergeStatesFn
         member this.Post(msg : 'message) = agent.Post(msg)
