@@ -13,6 +13,7 @@ type OpenRiskNetServiceInfo =
 type TripleIndexingStatus =
 | InProgress
 | Indexed of OpenRiskNetServiceInfo
+| Reindexing of OpenRiskNetServiceInfo
 | Failed of string
 
 type OpenApiRetrievalInformation =

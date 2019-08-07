@@ -10,7 +10,7 @@ open Orn.Registry.Shared
 open Orn.Registry.OpenApiServicesAgent
 
 type ProcessingMessage =
-  | IndexNewUrl of OpenApiUrl
+  | IndexNewUrl of OpenApiUrl * OpenApiProcessingInformation option
   | RemoveUrl of OpenApiUrl
 
 type IOpenApiProcessingAgent = Orn.Registry.IAgent<bool, ProcessingMessage> // The state should be unit but there is a weird compiler error if I return unit
@@ -23,14 +23,19 @@ type OpenApiProcessingAgent(feedbackAgent : Feedback.IFeedbackAgent, servicesAge
       let (>>=) a b = Result.bind b a
       let makeTuple a b = (a,b)
       match message with
-      | IndexNewUrl ((OpenApiUrl url) as openApiUrl) ->
-          let mutable (processingInfo : OpenApiProcessingInformation) = { Status = InProgress; OpenApiRetrievalInformation = None; DereferencedOpenApi = None }
+      | IndexNewUrl ((OpenApiUrl url) as openApiUrl, maybeAlreadyProcessedEntry) ->
+          let mutable (processingInfo : OpenApiProcessingInformation) =
+            match maybeAlreadyProcessedEntry with
+            | Some ({ Status = Indexed openrisknetServiceInfo} as alreadyProcessed )->
+              { alreadyProcessed with Status = Reindexing openrisknetServiceInfo }
+            | _ ->
+              { Status = InProgress; OpenApiRetrievalInformation = None; DereferencedOpenApi = None}
 
           let updateProcessingInfo (info : OpenApiProcessingInformation) =
             processingInfo <- info
             servicesAgent.Post(AddService (openApiUrl, info))
 
-          updateProcessingInfo { Status = InProgress; OpenApiRetrievalInformation = None; DereferencedOpenApi = None }
+          updateProcessingInfo processingInfo
 
           try
             let! result =
@@ -43,29 +48,37 @@ type OpenApiProcessingAgent(feedbackAgent : Feedback.IFeedbackAgent, servicesAge
                   |> AsyncResult.teeError (fun _ -> feedbackAgent.Post(Orn.Registry.Shared.OpenApiDownloadFailed(openApiUrl)))
                 use hasher = System.Security.Cryptography.SHA256.Create()
                 let hash = hasher.ComputeHash(System.Text.Encoding.UTF8.GetBytes(openapistring : string) : byte[])
-                let retrievalInfo =
-                  { OpenApiString = OpenApiRaw openapistring
-                    RetrievalTime = System.DateTimeOffset.UtcNow
-                    Hash = hash
-                    }
-                updateProcessingInfo { Status = InProgress; OpenApiRetrievalInformation = Some (retrievalInfo ); DereferencedOpenApi = None}
-                printfn "Downloading worked, processing..."
 
-                let retrievedAt = System.DateTime.UtcNow
+                match processingInfo with
+                | { Status = Reindexing oldServiceInfo; OpenApiRetrievalInformation = Some { Hash = oldHash }} as previousInfo when
+                    System.Collections.StructuralComparisons.StructuralEqualityComparer.Equals(hash, oldHash) ->
+                  // If the hash is still the same, return the old distilled information but update the retrieval time stamp
+                  let updatedOpenApiServiceInformation = { oldServiceInfo.OpenApiServiceInformation with RetrievedAt = System.DateTimeOffset.UtcNow }
+                  return (updatedOpenApiServiceInformation, oldServiceInfo.TripleStore)
+                | _ ->
+                  let retrievalInfo =
+                    { OpenApiString = OpenApiRaw openapistring
+                      RetrievalTime = System.DateTimeOffset.UtcNow
+                      Hash = hash
+                      }
+                  updateProcessingInfo { processingInfo with OpenApiRetrievalInformation = Some (retrievalInfo ) }
+                  printfn "Downloading worked, processing..."
 
-                let! description, openapi =
-                  openapistring
-                  |> OpenApiRaw
-                  |> TransformOpenApiToV3Dereferenced retrievedAt (openApiUrl)
-                  |> Result.teeError (fun err -> feedbackAgent.Post(OpenApiParsingFailed(openApiUrl, err)))
-                let! jsonld =
-                  fixOrnJsonLdContext openapi
-                  |> Result.teeError (fun err -> feedbackAgent.Post(JsonLdParsingError(openApiUrl, err)))
-                updateProcessingInfo {processingInfo with DereferencedOpenApi = Some (OpenApiFixedContextEntry (jsonld.Unwrap()))}
-                let! tripleStore =
-                  loadJsonLdIntoTripleStore jsonld
-                  |> Result.teeError (fun err -> feedbackAgent.Post(JsonLdParsingError(openApiUrl, err)))
-                return (description, tripleStore)
+                  let retrievedAt = System.DateTimeOffset.UtcNow
+
+                  let! description, openapi =
+                    openapistring
+                    |> OpenApiRaw
+                    |> TransformOpenApiToV3Dereferenced retrievedAt (openApiUrl)
+                    |> Result.teeError (fun err -> feedbackAgent.Post(OpenApiParsingFailed(openApiUrl, err)))
+                  let! jsonld =
+                    fixOrnJsonLdContext openapi
+                    |> Result.teeError (fun err -> feedbackAgent.Post(JsonLdParsingError(openApiUrl, err)))
+                  updateProcessingInfo {processingInfo with DereferencedOpenApi = Some (OpenApiFixedContextEntry (jsonld.Unwrap()))}
+                  let! tripleStore =
+                    loadJsonLdIntoTripleStore jsonld
+                    |> Result.teeError (fun err -> feedbackAgent.Post(JsonLdParsingError(openApiUrl, err)))
+                  return (description, tripleStore)
               }
 
 

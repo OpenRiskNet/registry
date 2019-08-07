@@ -108,7 +108,7 @@ let addExternalServiceHandler : HttpHandler =
         return! RequestErrors.BAD_REQUEST (text "Could not find query parameter 'service'") next ctx
       else
         logger.LogInformation("Adding service: ", service)
-        do (openApiProcessingAgent :> IOpenApiProcessingAgent).Post(IndexNewUrl (OpenApiUrl (service.[0])))
+        do (openApiProcessingAgent :> IOpenApiProcessingAgent).Post(IndexNewUrl (OpenApiUrl (service.[0]), None))
         ExternalServices <- Set.add service.[0] ExternalServices
         return! Successful.NO_CONTENT next ctx
     }
