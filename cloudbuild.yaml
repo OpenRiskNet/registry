@@ -5,7 +5,7 @@ steps:
   args: ['build',
          '-t', 'douglasconnect/orn-registry:latest',
          '--build-arg', 'GIT_CHANGESET=$COMMIT_SHA',
-         '-f', 'csvtoapi/Dockerfile',
+         '-f', 'Dockerfile',
          '.'
         ]
 - name: 'gcr.io/cloud-builders/docker'
