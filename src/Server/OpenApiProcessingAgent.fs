@@ -20,8 +20,6 @@ type OpenApiProcessingAgent(feedbackAgent : Feedback.IFeedbackAgent, servicesAge
     async {
 
       let! message = agent.Receive()
-      let (>>=) a b = Result.bind b a
-      let makeTuple a b = (a,b)
       match message with
       | IndexNewUrl ((OpenApiUrl url) as openApiUrl, maybeAlreadyProcessedEntry, reindexInterval) ->
           let mutable (processingInfo : OpenApiProcessingInformation) =
@@ -102,17 +100,6 @@ type OpenApiProcessingAgent(feedbackAgent : Feedback.IFeedbackAgent, servicesAge
 
       | RemoveUrl url ->
         servicesAgent.Post(RemoveService url)
-
-      // | ReindexFailed ->
-      //     serviceMap <-
-      //       Map.fold (fun state key value ->
-      //       match value.Status with
-      //        | InProgress -> Map.add key value state
-      //        | Indexed _ -> Map.add key value state
-      //        | Failed _ ->
-      //           agent.Post(AddToIndex(key))
-      //           state // drop failed services after queing them for reindexing
-      //       ) Map.empty serviceMap
 
       do! agentFunction feedbackAgent servicesAgent agent
     }

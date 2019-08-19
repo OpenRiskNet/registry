@@ -107,4 +107,4 @@ type SparqlResultForService =
     Result : SparqlResult }
 
 type SparqlResultsForServices =
-  SparqlResultForService list
+  SparqlResultForService array

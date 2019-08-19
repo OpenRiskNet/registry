@@ -152,10 +152,6 @@ let runSparqlQuery (logger : ILogger) (maybeService : OpenApiUrl option) (query 
                     | OpenApiServicesAgent.Reindexing serviceInfo
                     | OpenApiServicesAgent.Indexed serviceInfo -> (key, serviceInfo.OpenApiServiceInformation.Name, serviceInfo.TripleStore) :: state ) []
 
-    // log info about operations
-
-    // TODO: we query the triple stores serially for now. If the memory use is ok we could run all
-    // these queries in parallel or use some kind of max-parallelism
     let sources =
       match maybeService with
       | None -> openApisAndTripleStores
@@ -163,11 +159,16 @@ let runSparqlQuery (logger : ILogger) (maybeService : OpenApiUrl option) (query 
 
     let results =
       sources
-      |> List.map (fun (openapiUrl, name, triples) -> (openapiUrl, name, runQuery triples parsedQuery))
+      |> List.toArray
+      |> Array.Parallel.map
+        (fun (openapiUrl, name, triples) ->
+          let result = runQuery triples parsedQuery
+          openapiUrl, name, result
+        )
 
     let resultsWithEmptyListForErrors =
       results
-      |> List.map (fun (openapiUrl, name, result) ->
+      |> Array.map (fun (openapiUrl, name, result) ->
         match result with
         | Ok resultValue ->
             { ServiceName = name

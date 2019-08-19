@@ -10,7 +10,7 @@ type FeedbackAgent(cancelToken : CancellationToken) =
   let capacity = 50
   let log = System.Collections.Generic.Queue<TimestampedFeedback>()
 
-  let rec AgentFunction(agent : Agent<Feedback>) =
+  let rec agentFunction(agent : Agent<Feedback>) =
      async {
         let! message = agent.Receive()
         lock (log) (fun _ ->
@@ -19,10 +19,10 @@ type FeedbackAgent(cancelToken : CancellationToken) =
             log.Dequeue() |> ignore // throw away the oldest item
           )
 
-        return! AgentFunction(agent)
+        return! agentFunction(agent)
      }
 
-  let Agent = MailboxProcessor.Start(AgentFunction, cancelToken)
+  let Agent = MailboxProcessor.Start(agentFunction, cancelToken)
 
   member this.Log =
     lock (log) (fun _ ->

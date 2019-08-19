@@ -16,20 +16,20 @@ type AgentLoadBalancingAgent<'state, 'message, 'agent when 'agent :> IAgent<'sta
     // In Haskell this would be Semigroup.mappend
      mergeStatesFn : ('state -> 'state -> 'state),
      cancelToken : CancellationToken) =
-    let Agents = Array.ofSeq agents
+    let agents = Array.ofSeq agents
 
     let mutable nextAgentIndex = 0
 
     let rec agentFunction (agent : Agent<'message>) =
         async {
             let! msg = agent.Receive()
-            Agents.[nextAgentIndex].Post(msg)
-            nextAgentIndex <- (nextAgentIndex + 1) % (Agents.Length)
+            agents.[nextAgentIndex].Post(msg)
+            nextAgentIndex <- (nextAgentIndex + 1) % (agents.Length)
             do! agentFunction agent
         }
 
     let agent = MailboxProcessor.Start(agentFunction, cancelToken)
 
     interface IAgentLoadBalancingAgent<'state, 'message> with
-        member this.ReadonlyState = Agents |> Seq.map (fun agent -> agent.ReadonlyState) |> Seq.reduce mergeStatesFn
+        member this.ReadonlyState = agents |> Seq.map (fun agent -> agent.ReadonlyState) |> Seq.reduce mergeStatesFn
         member this.Post(msg : 'message) = agent.Post(msg)
