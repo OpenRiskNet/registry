@@ -1,4 +1,0 @@
-container-name: orn-registry
-registry: docker.io/douglasconnect
-deployment-name: orn-registry
-namespace: openrisknet

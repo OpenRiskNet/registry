@@ -10,13 +10,4 @@ steps:
         ]
 - name: 'gcr.io/cloud-builders/docker'
   args: ['tag', 'douglasconnect/orn-registry:latest', 'douglasconnect/orn-registry:$SHORT_SHA']
-- name: 'gcr.io/cloud-builders/docker'
-  args: ['push', 'douglasconnect/orn-registry:latest']
-- name: 'gcr.io/cloud-builders/docker'
-  args: ['push', 'douglasconnect/orn-registry:$SHORT_SHA']
-- name: 'gcr.io/cloud-builders/kubectl'
-  args: ['set', 'image', 'deployment/csvtoapi', 'csvtoapi=douglasconnect/orn-registry:$SHORT_SHA', '--namespace=edelweiss-develop']
-  env:
-  - 'CLOUDSDK_COMPUTE_ZONE=europe-west1-d'
-  - 'CLOUDSDK_CONTAINER_CLUSTER=cluster-1'
 images: ['douglasconnect/orn-registry:latest', 'douglasconnect/orn-registry:$SHORT_SHA']
