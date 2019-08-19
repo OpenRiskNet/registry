@@ -36,3 +36,8 @@ If you want to build and run the registry locally you need the following install
 * the [fake build tool](https://fake.build/)
 * [node version](https://nodejs.org/) >= 8 (and ideally yarn but npm should also work)
 Once you have the prerequisites, just run `fake build -t run` to run an interactive development server with hot reloading of the client and server or `fake build` to build and package everything.
+
+
+## Notes
+
+OpenRiskNet[OpenRiskNet](https://openrisknet.org/) is a 3 year project funded by the European Commission within Horizon2020 EINFRA-22-2016 Programme (Grant Agreement 731075; start date 1 December 2016).
