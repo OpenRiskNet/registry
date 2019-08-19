@@ -93,7 +93,7 @@ type UpdateAgent(feedbackAgent : Feedback.IFeedbackAgent,
 
     }
 
-  let rec AgentFunction (processingAgent : OpenApiProcessing.IOpenApiProcessingAgent)
+  let rec agentFunction (processingAgent : OpenApiProcessing.IOpenApiProcessingAgent)
                         (agent : Agent<Unit>) =
     async {
       try
@@ -115,7 +115,7 @@ type UpdateAgent(feedbackAgent : Feedback.IFeedbackAgent,
               let urls = rawurls.Split('|') |> Array.map (fun url -> url.Trim())
               printfn "OpenRiskNet definition found for service %s" service.Name
               for url in urls do
-                processingAgent.Post (OpenApiProcessing.IndexNewUrl (OpenApiUrl url, None))
+                processingAgent.Post (OpenApiProcessing.IndexNewUrl (OpenApiUrl url, None, 60.0<FSharp.Data.UnitSystems.SI.UnitNames.second>))
           | None -> printfn "No openrisknet definition given for %s" service.Name
 
         for service in removedServices do
@@ -131,10 +131,10 @@ type UpdateAgent(feedbackAgent : Feedback.IFeedbackAgent,
       with
       | ex -> printfn "Excption occured in Kubernetes Agent %O" ex
 
-      return! AgentFunction processingAgent agent
+      return! agentFunction processingAgent agent
     }
 
-  let agent = MailboxProcessor.Start(AgentFunction processingAgent, cancelToken)
+  let agent = MailboxProcessor.Start(agentFunction processingAgent, cancelToken)
 
   interface IKubernetesAgent with
     member this.Post(unit : unit) = agent.Post()

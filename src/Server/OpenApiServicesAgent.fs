@@ -24,6 +24,7 @@ type OpenApiRetrievalInformation =
 type OpenApiProcessingInformation =
     { Status : TripleIndexingStatus
       OpenApiRetrievalInformation : OpenApiRetrievalInformation option
+      ReindexInterval : float<FSharp.Data.UnitSystems.SI.UnitNames.second>
       DereferencedOpenApi : OpenApiFixedContextEntry option
       }
 

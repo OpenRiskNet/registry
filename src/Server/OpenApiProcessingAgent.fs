@@ -10,7 +10,7 @@ open Orn.Registry.Shared
 open Orn.Registry.OpenApiServicesAgent
 
 type ProcessingMessage =
-  | IndexNewUrl of OpenApiUrl * OpenApiProcessingInformation option
+  | IndexNewUrl of OpenApiUrl * OpenApiProcessingInformation option * float<FSharp.Data.UnitSystems.SI.UnitNames.second>
   | RemoveUrl of OpenApiUrl
 
 type IOpenApiProcessingAgent = Orn.Registry.IAgent<bool, ProcessingMessage> // The state should be unit but there is a weird compiler error if I return unit
@@ -23,13 +23,13 @@ type OpenApiProcessingAgent(feedbackAgent : Feedback.IFeedbackAgent, servicesAge
       let (>>=) a b = Result.bind b a
       let makeTuple a b = (a,b)
       match message with
-      | IndexNewUrl ((OpenApiUrl url) as openApiUrl, maybeAlreadyProcessedEntry) ->
+      | IndexNewUrl ((OpenApiUrl url) as openApiUrl, maybeAlreadyProcessedEntry, reindexInterval) ->
           let mutable (processingInfo : OpenApiProcessingInformation) =
             match maybeAlreadyProcessedEntry with
             | Some ({ Status = Indexed openrisknetServiceInfo} as alreadyProcessed )->
               { alreadyProcessed with Status = Reindexing openrisknetServiceInfo }
             | _ ->
-              { Status = InProgress; OpenApiRetrievalInformation = None; DereferencedOpenApi = None}
+              { Status = InProgress; OpenApiRetrievalInformation = None; DereferencedOpenApi = None; ReindexInterval = reindexInterval}
 
           let updateProcessingInfo (info : OpenApiProcessingInformation) =
             processingInfo <- info
@@ -94,7 +94,7 @@ type OpenApiProcessingAgent(feedbackAgent : Feedback.IFeedbackAgent, servicesAge
           with
           | :? System.Net.WebException ->
             printfn "Timeout occured in OpenApi processing agent when processing: %s" url
-            servicesAgent.Post(AddService (openApiUrl,({ Status = Failed "Timeout while trying to download swagger definition"; OpenApiRetrievalInformation = None; DereferencedOpenApi = None})))
+            servicesAgent.Post(AddService (openApiUrl,({ Status = Failed "Timeout while trying to download swagger definition"; OpenApiRetrievalInformation = None; DereferencedOpenApi = None; ReindexInterval = reindexInterval})))
 
           | ex ->
             feedbackAgent.Post(JsonLdParsingError(OpenApiUrl url, ex.ToString()))
