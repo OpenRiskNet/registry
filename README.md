@@ -40,4 +40,4 @@ Once you have the prerequisites, just run `fake build -t run` to run an interact
 
 ## Notes
 
-OpenRiskNet[OpenRiskNet](https://openrisknet.org/) is a 3 year project funded by the European Commission within Horizon2020 EINFRA-22-2016 Programme (Grant Agreement 731075; start date 1 December 2016).
+[OpenRiskNet](https://openrisknet.org/) is a 3 year project funded by the European Commission within Horizon2020 EINFRA-22-2016 Programme (Grant Agreement 731075; start date 1 December 2016).
