@@ -1,4 +1,4 @@
-FROM eu.gcr.io/douglasconnect-docker/fsharp-mono-dotnetcore:latest as builder
+FROM douglasconnect/safe-stack-build-container:latest as builder
 
 RUN mkdir -p /root/build
 WORKDIR /root/build
