@@ -37,6 +37,7 @@ type IKeycloak =
   abstract init : Unit -> IKeycloakPromise<bool>
   abstract login : obj -> Unit
   abstract token : string
+  abstract subject : string
 
 type OntologySearchTerm =
   { Text : string
@@ -66,7 +67,11 @@ let tabToLabel = function
 | SparqlQueryTab -> "SparQL query"
 | ExternalServices -> "External services"
 
-type Model =
+type LoginInfo =
+  { Token : string
+    UserId : string }
+
+type AppModel =
   { Services : ServiceList
     InputSearchTerm : OntologySearchTerm
     OutputSearchTerm : OntologySearchTerm
@@ -75,9 +80,15 @@ type Model =
     ActiveTab : ActiveTab
     ExternalServiceTextFieldContent : string
     SelectedSparqlService : string
+    LoginInfo : LoginInfo
   }
 
-type Msg =
+type Model =
+| Authenticating
+| LoggedIn of AppModel
+| LoginError of string
+
+type AppMsg =
 | Refresh of Result<Shared.ActiveServices, exn>
 | RunSparqlQuery
 | SparqlQueryFinished of Result<SparqlResultsForServices, exn>
@@ -90,7 +101,10 @@ type Msg =
 | AddExternalServiceRequestCompleted of Result<Response, exn>
 | RemoveExternalServiceRequestCompleted of Result<Response, exn>
 | SparqlSerivceSelected of string
-| KeycloakInit of Result<bool, obj>
+
+type Msg =
+| AppMessage of AppMsg
+| KeycloakInit of Result<LoginInfo, obj>
 
 let buildUrl (baseString : string) (parameters : (string * string list) list) : string =
   let allUsedParams = parameters |> List.filter (fun (_, values) -> not (List.isEmpty values))
@@ -196,72 +210,87 @@ let testSparqlResult =
 
 let init (keycloak : IKeycloak) : Model * Cmd<Msg> =
 
-  let localDebugMode = false
-  let initialServices, initialCommand, initialResults =
-    if localDebugMode
-    then testServices, Cmd.none, Some testSparqlResult
-    else ServicesLoading, refresh, None
-  let model =
-    { Services = initialServices
-      InputSearchTerm =
-        { Text = ""
-          OntologyTerm = None
-          TermSuggestions = [] }
-      OutputSearchTerm =
-        { Text = ""
-          OntologyTerm = None
-          TermSuggestions = [] }
-      SparqlQuery = initialQuery
-      SparqlResults = initialResults
-      ActiveTab = ServicesTab
-      ExternalServiceTextFieldContent = ""
-      SelectedSparqlService = ""
-    }
 
-  model, initialCommand
+  let model =
+    Authenticating
+
+  model, Cmd.none
 
 
 let update (msg : Msg) (model : Model) : Model * Cmd<Msg> =
   let model', cmd =
     match msg with
-    | Refresh (Ok services) -> { model with Services = Services services }, sleep
-    | Refresh (Error err) -> { model with Services = ServicesError (err.ToString()) }, sleep
-    | SparqlQueryFinished (Ok results) -> { model with SparqlResults = Some results}, Cmd.none
-    | SparqlQueryFinished (Error err) ->
-        JS.console.log("Error when running sparql query!", [err])
-        { model with SparqlResults = None}, Cmd.none
-    | RunSparqlQuery -> { model with SparqlResults = None}, runSparqlQuery model.SelectedSparqlService model.SparqlQuery
-    | QueryChanged query ->
-      JS.console.log("Query updated", [query])
-      { model with SparqlQuery = query}, Cmd.none
-    | Awake -> model, refresh
-    | TabChanged newTab -> { model with ActiveTab = newTab}, Cmd.none
-    | ExternalServiceTextFieldChanged newText ->
-        { model with ExternalServiceTextFieldContent = newText }, Cmd.none
-    | AddExternalService ->
-        model, addExternalService model.ExternalServiceTextFieldContent
-    | RemoveExternalService service ->
-        model, removeExternalService service
-    | AddExternalServiceRequestCompleted (Ok _) -> model, Cmd.none
-    | AddExternalServiceRequestCompleted (Error err) ->
-      Fable.Import.JS.console.log("Error:", [err])
-      model, Cmd.none
-    | RemoveExternalServiceRequestCompleted (Ok _) -> model, Cmd.none
-    | RemoveExternalServiceRequestCompleted (Error err) ->
-      Fable.Import.JS.console.log("Error:", [err])
-      model, Cmd.none
-    | SparqlSerivceSelected newSelection -> { model with SelectedSparqlService = newSelection }, Cmd.none
-    | KeycloakInit (Ok result) ->
-      Fable.Import.JS.console.log(sprintf "User is logged in: %b" result)
-      model, Cmd.none
+    | AppMessage appmsg ->
+      match model with
+      | Authenticating
+      | LoginError _ ->
+        model, Cmd.none
+      | LoggedIn appModel ->
+        let newAppModel, cmd =
+          match appmsg with
+          | Refresh (Ok services) -> { appModel with Services = Services services }, sleep
+          | Refresh (Error err) -> { appModel with Services = ServicesError (err.ToString()) }, sleep
+          | SparqlQueryFinished (Ok results) -> { appModel with SparqlResults = Some results}, Cmd.none
+          | SparqlQueryFinished (Error err) ->
+              JS.console.log("Error when running sparql query!", [err])
+              { appModel with SparqlResults = None}, Cmd.none
+          | RunSparqlQuery -> { appModel with SparqlResults = None}, runSparqlQuery appModel.SelectedSparqlService appModel.SparqlQuery
+          | QueryChanged query ->
+            JS.console.log("Query updated", [query])
+            { appModel with SparqlQuery = query}, Cmd.none
+          | Awake -> appModel, refresh
+          | TabChanged newTab -> { appModel with ActiveTab = newTab}, Cmd.none
+          | ExternalServiceTextFieldChanged newText ->
+              { appModel with ExternalServiceTextFieldContent = newText }, Cmd.none
+          | AddExternalService ->
+              appModel, addExternalService appModel.ExternalServiceTextFieldContent
+          | RemoveExternalService service ->
+              appModel, removeExternalService service
+          | AddExternalServiceRequestCompleted (Ok _) -> appModel, Cmd.none
+          | AddExternalServiceRequestCompleted (Error err) ->
+            Fable.Import.JS.console.log("Error:", [err])
+            appModel, Cmd.none
+          | RemoveExternalServiceRequestCompleted (Ok _) -> appModel, Cmd.none
+          | RemoveExternalServiceRequestCompleted (Error err) ->
+            Fable.Import.JS.console.log("Error:", [err])
+            appModel, Cmd.none
+          | SparqlSerivceSelected newSelection -> { appModel with SelectedSparqlService = newSelection }, Cmd.none
+        LoggedIn newAppModel, Cmd.map AppMessage cmd
+    | KeycloakInit (Ok loginInfo) ->
+      let localDebugMode = false
+      let initialServices, initialCommand, initialResults =
+        if localDebugMode
+        then testServices, Cmd.none, Some testSparqlResult
+        else ServicesLoading, refresh, None
+
+      let newappModel =
+        { Services = initialServices
+          InputSearchTerm =
+            { Text = ""
+              OntologyTerm = None
+              TermSuggestions = [] }
+          OutputSearchTerm =
+            { Text = ""
+              OntologyTerm = None
+              TermSuggestions = [] }
+          SparqlQuery = initialQuery
+          SparqlResults = initialResults
+          ActiveTab = ServicesTab
+          ExternalServiceTextFieldContent = ""
+          SelectedSparqlService = ""
+          LoginInfo = loginInfo
+        }
+
+      LoggedIn newappModel, Cmd.map AppMessage initialCommand
     | KeycloakInit (Error err) ->
       Fable.Import.JS.console.log("Error: ", err)
+
       model, Cmd.none
 
   model', cmd
 
 
-let view (model : Model) (dispatch : Msg -> unit) =
+let appView (model : AppModel) (dispatch : AppMsg -> unit) =
   let tabContent =
     match model.ActiveTab with
     | SparqlQueryTab ->
@@ -476,11 +505,20 @@ let view (model : Model) (dispatch : Msg -> unit) =
                           Tabs.tab
                               (if activeTab = option then [ Tabs.Tab.IsActive true] else [])
                               [ a [ OnClick (fun _ -> dispatch (message option)) ] [ str (labelFn option) ] ] ) )
-
   div []
     [ renderTabs AllTabs tabToLabel model.ActiveTab TabChanged
       div [] tabContent
     ]
+
+let view (model : Model) (dispatch : Msg -> unit) =
+  match model with
+  | Authenticating ->
+    div [] [ str "Authenticating..."]
+  | LoggedIn appModel ->
+    appView appModel (AppMessage >> dispatch)
+  | LoginError error ->
+    div [] [ str "Error during login: "; str error ]
+
 
 open Fable.Core
 open Fable.Core.JsInterop
@@ -492,9 +530,10 @@ let keycloak : IKeycloak = jsNative
 let keycloakInit (keycloak : IKeycloak) initialModel =
   let sub dispatch =
     let sendInitOk(isAuthenticated : bool) =
-      dispatch(KeycloakInit (Ok isAuthenticated))
       if not isAuthenticated then
         keycloak.login() |> ignore
+      else
+        dispatch(KeycloakInit (Ok { Token = keycloak.token; UserId = keycloak.subject}))
     let sendInitError(err) =
       dispatch(KeycloakInit(Error(err)))
     keycloak.init().success(sendInitOk).error(sendInitError) |> ignore
