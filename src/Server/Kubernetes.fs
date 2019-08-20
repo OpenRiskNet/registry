@@ -5,6 +5,7 @@ open System.Threading
 open Orn.Registry.BasicTypes
 open Orn.Registry.Shared
 open FSharp.Interop.NullOptAble
+open Orn.Registry
 
 
 [<CustomComparison; CustomEquality>]
@@ -28,11 +29,13 @@ type K8sService =
     override this.GetHashCode() =
       this.Id.GetHashCode()
 
+type IKubernetesAgent = Orn.Registry.IAgent<Set<K8sService>, unit>
 
-type UpdateAgent(feedbackAgent : Orn.Registry.Feedback.FeedbackAgent, k8sApiUrl : string, cancelToken : CancellationToken) =
-  let serviceAdded = new Event<OpenApiUrl>()
-  let serviceRemoved = new Event<OpenApiUrl>()
 
+type UpdateAgent(feedbackAgent : Feedback.IFeedbackAgent,
+                 processingAgent : OpenApiProcessing.IOpenApiProcessingAgent,
+                 k8sApiUrl : string,
+                 cancelToken : CancellationToken) =
   let k8sconfig =
     if k8sApiUrl <> "" then
       KubernetesClientConfiguration(Host = k8sApiUrl)
@@ -90,7 +93,8 @@ type UpdateAgent(feedbackAgent : Orn.Registry.Feedback.FeedbackAgent, k8sApiUrl 
 
     }
 
-  let rec AgentFunction (agent : Agent<Unit>) =
+  let rec agentFunction (processingAgent : OpenApiProcessing.IOpenApiProcessingAgent)
+                        (agent : Agent<Unit>) =
     async {
       try
         do! agent.Receive()
@@ -111,7 +115,7 @@ type UpdateAgent(feedbackAgent : Orn.Registry.Feedback.FeedbackAgent, k8sApiUrl 
               let urls = rawurls.Split('|') |> Array.map (fun url -> url.Trim())
               printfn "OpenRiskNet definition found for service %s" service.Name
               for url in urls do
-                serviceAdded.Trigger(OpenApiUrl url)
+                processingAgent.Post (OpenApiProcessing.IndexNewUrl (OpenApiUrl url, None, 60.0<FSharp.Data.UnitSystems.SI.UnitNames.second>))
           | None -> printfn "No openrisknet definition given for %s" service.Name
 
         for service in removedServices do
@@ -122,23 +126,16 @@ type UpdateAgent(feedbackAgent : Orn.Registry.Feedback.FeedbackAgent, k8sApiUrl 
           | Some rawurls ->
             let urls = rawurls.Split('|') |> Array.map (fun url -> url.Trim())
             for url in urls do
-              serviceRemoved.Trigger(OpenApiUrl url)
+              processingAgent.Post (OpenApiProcessing.RemoveUrl( OpenApiUrl url))
           | None -> ()
       with
       | ex -> printfn "Excption occured in Kubernetes Agent %O" ex
 
-      return! AgentFunction(agent)
+      return! agentFunction processingAgent agent
     }
 
-  let agent = MailboxProcessor.Start(AgentFunction, cancelToken)
+  let agent = MailboxProcessor.Start(agentFunction processingAgent, cancelToken)
 
-  member this.TriggerPull() = agent.Post ()
-
-  member this.Services = services
-
-
-  [<CLIEvent>]
-  member this.ServiceAdded = serviceAdded.Publish
-
-  [<CLIEvent>]
-  member this.ServiceRemoved = serviceRemoved.Publish
+  interface IKubernetesAgent with
+    member this.Post(unit : unit) = agent.Post()
+    member this.ReadonlyState = services

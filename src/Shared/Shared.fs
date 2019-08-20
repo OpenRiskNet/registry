@@ -69,7 +69,7 @@ type OpenApiServiceInformation =
     Endpoints : string list
     OpenApiUrl : OpenApiUrl
     Name : string
-    RetrievedAt : DateTime
+    RetrievedAt : DateTimeOffset
   }
 
 type OrnService =
@@ -107,4 +107,4 @@ type SparqlResultForService =
     Result : SparqlResult }
 
 type SparqlResultsForServices =
-  SparqlResultForService list
+  SparqlResultForService array

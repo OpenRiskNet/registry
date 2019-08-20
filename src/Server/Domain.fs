@@ -21,10 +21,10 @@ let getCurrentServices (logger : ILogger) : Async<Shared.ActiveServices> =
     logger.LogInformation "Entered getCurrentServices"
 
     let k8sServices =
-      k8sUpdateAgent.Services
+      k8sUpdateAgent.ReadonlyState
 
     let ornServices =
-      openApiAgent.ServiceMap
+      openApiServicesAgent.ReadonlyState
 
     let externalServices =
       ExternalServices
@@ -35,9 +35,10 @@ let getCurrentServices (logger : ILogger) : Async<Shared.ActiveServices> =
                      >> (fun indexStatusOption ->
                           match indexStatusOption with
                           | None -> None
-                          | Some { Status = OpenApiProcessing.InProgress } -> None
-                          | Some { Status = (OpenApiProcessing.Failed _) } -> None
-                          | Some { Status = (OpenApiProcessing.Indexed ornInfo) } -> Some { OpenApiServiceInformation = ornInfo.OpenApiServiceInformation } ))
+                          | Some { Status = OpenApiServicesAgent.InProgress } -> None
+                          | Some { Status = (OpenApiServicesAgent.Failed _) } -> None
+                          | Some { Status = (OpenApiServicesAgent.Reindexing ornInfo)}
+                          | Some { Status = (OpenApiServicesAgent.Indexed ornInfo) } -> Some { OpenApiServiceInformation = ornInfo.OpenApiServiceInformation } ))
       |> Seq.toList
 
     let k8sServiceWithOptionalOrnService =
@@ -47,9 +48,10 @@ let getCurrentServices (logger : ILogger) : Async<Shared.ActiveServices> =
                >> (fun indexStatusOption ->
                     match indexStatusOption with
                     | None -> None
-                    | Some { Status = OpenApiProcessing.InProgress } -> None
-                    | Some { Status = (OpenApiProcessing.Failed _) } -> None
-                    | Some { Status = (OpenApiProcessing.Indexed ornInfo) } -> Some ornInfo))
+                    | Some { Status = OpenApiServicesAgent.InProgress } -> None
+                    | Some { Status = (OpenApiServicesAgent.Failed _) } -> None
+                    | Some { Status = (OpenApiServicesAgent.Reindexing ornInfo) }
+                    | Some { Status = (OpenApiServicesAgent.Indexed ornInfo) } -> Some ornInfo))
       |> Seq.zip (k8sServices)
 
     let k8sServicesOnly, ornServices =
@@ -84,7 +86,7 @@ let getCurrentServices (logger : ILogger) : Async<Shared.ActiveServices> =
         Shared.OrnServices = clientFormatOrnServices
         Shared.ExternalOrnServices = externalServiceWithOptionalOrnService
         Shared.ExternalServices = Set.toList externalServices
-        Shared.Messages = feedbackAgent.Log |> Seq.toList }
+        Shared.Messages = feedbackAgent.ReadonlyState |> Seq.toList }
 
   }
 
@@ -94,7 +96,7 @@ let getCurrentServicesHandler : HttpHandler =
       task {
         let logger = ctx.GetLogger()
         let! services = getCurrentServices(logger)
-        return! Giraffe.HttpStatusCodeHandlers.Successful.ok (json services) next ctx
+        return! Successful.ok (json services) next ctx
       }
 
 
@@ -105,12 +107,12 @@ let addExternalServiceHandler : HttpHandler =
       logger.LogInformation("Adding external service")
       let hasService, service = ctx.Request.Query.TryGetValue "service"
       if not hasService then
-        return! Giraffe.HttpStatusCodeHandlers.RequestErrors.BAD_REQUEST (text "Could not find query parameter 'service'") next ctx
+        return! RequestErrors.BAD_REQUEST (text "Could not find query parameter 'service'") next ctx
       else
         logger.LogInformation("Adding service: ", service)
-        do openApiAgent.SendMessage(Orn.Registry.OpenApiProcessing.AddToIndex (OpenApiUrl (service.[0])))
+        do openApiProcessingAgent.Post(IndexNewUrl (OpenApiUrl (service.[0]), None, 60.0<FSharp.Data.UnitSystems.SI.UnitNames.second>))
         ExternalServices <- Set.add service.[0] ExternalServices
-        return! Giraffe.HttpStatusCodeHandlers.Successful.NO_CONTENT next ctx
+        return! Successful.NO_CONTENT next ctx
     }
 
 
@@ -121,34 +123,35 @@ let removeExternalServiceHandler : HttpHandler =
       logger.LogInformation("Adding external service")
       let hasService, service = ctx.Request.Query.TryGetValue "service"
       if not hasService then
-        return! Giraffe.HttpStatusCodeHandlers.RequestErrors.BAD_REQUEST (text "Could not find query parameter 'service'") next ctx
+        return! RequestErrors.BAD_REQUEST (text "Could not find query parameter 'service'") next ctx
       else
         logger.LogInformation("Removing service: ", service)
-        do openApiAgent.SendMessage(Orn.Registry.OpenApiProcessing.RemoveFromIndex (OpenApiUrl (service.[0])))
+        do openApiProcessingAgent.Post(RemoveUrl (OpenApiUrl (service.[0])))
         ExternalServices <- Set.remove service.[0] ExternalServices
-        return! Giraffe.HttpStatusCodeHandlers.Successful.NO_CONTENT next ctx
+        return! Successful.NO_CONTENT next ctx
     }
 
 
 let runSparqlQuery (logger : ILogger) (maybeService : OpenApiUrl option) (query : string) : Result<SparqlResultsForServices, string> =
   result {
+    let timer = System.Diagnostics.Stopwatch()
+    timer.Start()
     let! parsedQuery = createSparqlQuery query
+    let timeToParsed = timer.Elapsed
+    logger.LogInformation(sprintf "Parsing sparql query took %f milliseconds" timeToParsed.TotalMilliseconds)
 
     let ornServices =
-        openApiAgent.ServiceMap
+        openApiServicesAgent.ReadonlyState
 
     let openApisAndTripleStores =
       ornServices
       |> Map.fold (fun state key value ->
                     match value.Status with
-                    | InProgress -> state
-                    | Failed _ -> state
-                    | Indexed serviceInfo -> (key, serviceInfo.OpenApiServiceInformation.Name, serviceInfo.TripleStore) :: state ) []
+                    | OpenApiServicesAgent.InProgress -> state
+                    | OpenApiServicesAgent.Failed _ -> state
+                    | OpenApiServicesAgent.Reindexing serviceInfo
+                    | OpenApiServicesAgent.Indexed serviceInfo -> (key, serviceInfo.OpenApiServiceInformation.Name, serviceInfo.TripleStore) :: state ) []
 
-    // log info about operations
-
-    // TODO: we query the triple stores serially for now. If the memory use is ok we could run all
-    // these queries in parallel or use some kind of max-parallelism
     let sources =
       match maybeService with
       | None -> openApisAndTripleStores
@@ -156,11 +159,16 @@ let runSparqlQuery (logger : ILogger) (maybeService : OpenApiUrl option) (query 
 
     let results =
       sources
-      |> List.map (fun (openapiUrl, name, triples) -> (openapiUrl, name, runQuery triples parsedQuery))
+      |> List.toArray
+      |> Array.Parallel.map
+        (fun (openapiUrl, name, triples) ->
+          let result = runQuery triples parsedQuery
+          openapiUrl, name, result
+        )
 
     let resultsWithEmptyListForErrors =
       results
-      |> List.map (fun (openapiUrl, name, result) ->
+      |> Array.map (fun (openapiUrl, name, result) ->
         match result with
         | Ok resultValue ->
             { ServiceName = name
@@ -174,6 +182,10 @@ let runSparqlQuery (logger : ILogger) (maybeService : OpenApiUrl option) (query 
               Result = NoResult
           }
           )
+
+    let timeToQueried = timer.Elapsed
+    logger.LogInformation(sprintf "Executing sparql query against %d services took %f milliseconds" (sources.Length) (timeToQueried - timeToParsed).TotalMilliseconds)
+    timer.Stop()
 
     return resultsWithEmptyListForErrors
   }
@@ -196,9 +208,9 @@ let runSparqlQueryHandler : HttpHandler =
         let result = runSparqlQuery logger service (query.[0])
         match result with
         | Ok resultTriplesForServices -> // TODO: serialize this properly
-            return! Giraffe.HttpStatusCodeHandlers.Successful.ok (json resultTriplesForServices) next ctx
+            return! Successful.ok (json resultTriplesForServices) next ctx
         | Error error ->
-            return! Giraffe.HttpStatusCodeHandlers.ServerErrors.INTERNAL_ERROR (text error) next ctx
+            return! ServerErrors.INTERNAL_ERROR (text error) next ctx
     }
 
 
@@ -208,16 +220,17 @@ let swaggerUiHandler : HttpHandler =
           let hasService, serviceUris = ctx.Request.Query.TryGetValue "service"
           if hasService then
             let serviceUri = serviceUris.[0]
-            let services = openApiAgent.ServiceMap
+            let services = openApiServicesAgent.ReadonlyState
             let registeredService =
               Map.tryFind (OpenApiUrl serviceUri) services
               |> Option.bind (fun serviceIndexingStatus ->
                   match serviceIndexingStatus.Status with
-                   | InProgress -> None
-                   | Indexed serviceInfo -> Some serviceIndexingStatus
-                   | Failed _ -> None)
+                   | OpenApiServicesAgent.InProgress -> None
+                   | OpenApiServicesAgent.Indexed serviceInfo -> Some serviceIndexingStatus
+                   | OpenApiServicesAgent.Reindexing serviceInfo -> Some serviceIndexingStatus
+                   | OpenApiServicesAgent.Failed _ -> None)
             match registeredService with
-            | Some { RawOpenApi = Some (OpenApiRaw rawOpenApi) } ->
+            | Some { OpenApiRetrievalInformation = Some {OpenApiString = OpenApiRaw rawOpenApi} } ->
               return! htmlView (Orn.Registry.Views.SwaggerUi.swaggerUi rawOpenApi) next ctx
             | _ ->
               return! Giraffe.HttpStatusCodeHandlers.ServerErrors.INTERNAL_ERROR "Could not retrieve OpenApi for requested service" next ctx
@@ -242,16 +255,17 @@ let rawOpenApiHandler : HttpHandler =
       let hasService, serviceUris = ctx.Request.Query.TryGetValue "service"
       if hasService then
         let serviceUri = serviceUris.[0]
-        let services = openApiAgent.ServiceMap
+        let services = openApiServicesAgent.ReadonlyState
         let registeredService =
           Map.tryFind (OpenApiUrl serviceUri) services
           |> Option.bind (fun serviceIndexingStatus ->
               match serviceIndexingStatus.Status with
-               | InProgress -> None
-               | Indexed serviceInfo -> Some serviceIndexingStatus
-               | Failed _ -> None)
+               | OpenApiServicesAgent.InProgress -> None
+               | OpenApiServicesAgent.Indexed serviceInfo -> Some serviceIndexingStatus
+               | OpenApiServicesAgent.Reindexing serviceInfo -> Some serviceIndexingStatus
+               | OpenApiServicesAgent.Failed _ -> None)
         match registeredService with
-        | Some { RawOpenApi = Some (OpenApiRaw rawOpenApi) } ->
+        | Some { OpenApiRetrievalInformation = Some {OpenApiString = OpenApiRaw rawOpenApi} } ->
             let prettyJsonResult = prettifyJson rawOpenApi
             match prettyJsonResult with
             | Ok prettyJson ->
@@ -271,14 +285,15 @@ let dereferencedOpenApiHandler : HttpHandler =
       let hasService, serviceUris = ctx.Request.Query.TryGetValue "service"
       if hasService then
         let serviceUri = serviceUris.[0]
-        let services = openApiAgent.ServiceMap
+        let services = openApiServicesAgent.ReadonlyState
         let registeredService =
           Map.tryFind (OpenApiUrl serviceUri) services
           |> Option.bind (fun serviceIndexingStatus ->
               match serviceIndexingStatus.Status with
-               | InProgress -> None
-               | Indexed serviceInfo -> Some serviceIndexingStatus
-               | Failed _ -> None)
+               | OpenApiServicesAgent.InProgress -> None
+               | OpenApiServicesAgent.Indexed serviceInfo -> Some serviceIndexingStatus
+               | OpenApiServicesAgent.Reindexing serviceInfo -> Some serviceIndexingStatus
+               | OpenApiServicesAgent.Failed _ -> None)
         match registeredService with
         | Some { DereferencedOpenApi = Some (OpenApiFixedContextEntry dereferencedOpenApi) } ->
           let prettyJsonResult = prettifyJson dereferencedOpenApi

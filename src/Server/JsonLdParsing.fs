@@ -12,6 +12,11 @@ open Newtonsoft.Json.Linq
 open Cvdm.ErrorHandling
 open Orn.Registry.BasicTypes
 
+// OpenAPI cannot contain arbitrary keys - instead custom properties need
+// to be prefixed with "x-". At the same time, Json-LD needs a json-ld context
+// that is given as a json key of "@context". We want the document to be valid
+// OpenAPI but also want to use it as Json-LD - so here we rename every "x-orn-@context"
+// to "@context"
 let fixOrnJsonLdContext (OpenApiDereferenced openapiString) =
     let rec recursiveRenameContext (token : Chiron.Json) =
         match token with

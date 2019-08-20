@@ -3,6 +3,7 @@ module Orn.Registry.AgentSetup
 open System
 open System.IO
 open System.Threading
+open FSharp.Data.UnitSystems.SI.UnitNames
 
 open Orn.Registry.BasicTypes
 
@@ -18,31 +19,58 @@ let k8sApiUrl = getEnvironmentVariableOrDefault "KUBERNETES_API_ENDPOINT" ""
 
 let cancelTokenSource = new CancellationTokenSource()
 
-let feedbackAgent = Orn.Registry.Feedback.FeedbackAgent(cancelTokenSource.Token)
-let openApiAgent = OpenApiProcessing.OpenApiAgent(feedbackAgent, cancelTokenSource.Token)
+let private feedbackAgentImpl = Orn.Registry.Feedback.FeedbackAgent(cancelTokenSource.Token)
+let feedbackAgent = feedbackAgentImpl :> Feedback.IFeedbackAgent
+let private openApiServicesAgentImpl = OpenApiServicesAgent.OpenRiskNetServicesAgent(cancelTokenSource.Token)
+let openApiServicesAgent = openApiServicesAgentImpl :> OpenApiServicesAgent.IOpenApiServicesAgent
+let private processingAgents =
+  seq {1..19} // create 19 processing agents - prime numbers are probably better since we do simple round robin
+  |> Seq.map (fun _ -> OpenApiProcessing.OpenApiProcessingAgent(feedbackAgent, openApiServicesAgent, cancelTokenSource.Token) :> OpenApiProcessing.IOpenApiProcessingAgent)
 
-let k8sUpdateAgent = Kubernetes.UpdateAgent(feedbackAgent, k8sApiUrl, cancelTokenSource.Token)
-k8sUpdateAgent.ServiceAdded
-|> Event.add (openApiAgent.SendMessage << OpenApiProcessing.AddToIndex)
-k8sUpdateAgent.ServiceRemoved
-|> Event.add (openApiAgent.SendMessage << OpenApiProcessing.RemoveFromIndex)
+let private openApiProcessingAgentImpl =
+  AgentLoadBalancing.AgentLoadBalancingAgent(processingAgents, (fun _ _ -> true), cancelTokenSource.Token)
+  : AgentLoadBalancing.AgentLoadBalancingAgent<bool, OpenApiProcessing.ProcessingMessage, OpenApiProcessing.IOpenApiProcessingAgent>
 
+let openApiProcessingAgent = openApiProcessingAgentImpl :> OpenApiProcessing.IOpenApiProcessingAgent
 
-let createRefreshAgent (action : Unit -> Unit) (timeoutMs : int) : MailboxProcessor<Unit> = Agent.Start((fun agent ->
-  let rec sleepRefreshLoop() =
-    async {
-      do! Async.Sleep(timeoutMs)
-      do action()
-      do! sleepRefreshLoop()
-    }
+let private k8sUpdateAgentImpl : Kubernetes.UpdateAgent = Kubernetes.UpdateAgent(feedbackAgent, openApiProcessingAgent, k8sApiUrl, cancelTokenSource.Token)
+let k8sUpdateAgent = k8sUpdateAgentImpl :> Kubernetes.IKubernetesAgent
 
-  sleepRefreshLoop()
-  ), cancelTokenSource.Token)
+let createRefreshAgent (action : Unit -> Unit) (timeout : float<second>) : MailboxProcessor<Unit> =
+  Agent.Start((fun agent ->
+    let rec sleepRefreshLoop() =
+      async {
+        do! Async.Sleep(int(timeout * millisecondsPerSecond))
+        do action()
+        do! sleepRefreshLoop()
+      }
 
-let kubernetesServicesRefreshAgent = createRefreshAgent k8sUpdateAgent.TriggerPull 2000
-let reindexFailedServicesRefreshAgent = createRefreshAgent (fun _ -> openApiAgent.SendMessage(OpenApiProcessing.ReindexFailed)) 30_000
+    sleepRefreshLoop()
+    ), cancelTokenSource.Token)
 
-// TODO: Add giving back the indexed openrisknet servcies from openApiAgent as well
-//       Add frontend second list of openrisknet services with annotation as first list
-//       Annotate ChemIdConvert with corrent x-orn-@context
-//       Try if it works :)
+let private kubernetesServicesRefreshAgent =
+  createRefreshAgent
+    k8sUpdateAgent.Post
+    2.0<second>
+
+let private reindexFailedServicesRefreshAgent =
+  createRefreshAgent
+    (fun _ ->
+      let mutable reindexingCount = 0
+      let services = openApiServicesAgent.ReadonlyState
+      services
+      |> Map.iter
+         (fun key value ->
+            match value with
+            | { Status = OpenApiServicesAgent.Indexed _; OpenApiRetrievalInformation = Some retrievalInfo; ReindexInterval = reindexInterval }
+                when (retrievalInfo.RetrievalTime + (secondsToTimeSpan reindexInterval)) < System.DateTimeOffset.UtcNow ->
+                  reindexingCount <- reindexingCount + 1
+                  openApiProcessingAgent.Post(OpenApiProcessing.IndexNewUrl(key, Some value, reindexInterval))
+            | { Status = OpenApiServicesAgent.Failed _; ReindexInterval = reindexInterval } ->
+                reindexingCount <- reindexingCount + 1
+                openApiProcessingAgent.Post(OpenApiProcessing.IndexNewUrl(key, Some value, reindexInterval ))
+            | _ -> ()
+         )
+      // log reindexingCount here in the future
+    )
+    60.0<second>

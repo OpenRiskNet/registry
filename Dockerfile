@@ -1,4 +1,4 @@
-FROM eu.gcr.io/douglasconnect-docker/fsharp-mono-dotnetcore:latest as builder
+FROM douglasconnect/safe-stack-build-container:latest as builder
 
 RUN mkdir -p /root/build
 WORKDIR /root/build
@@ -21,10 +21,13 @@ WORKDIR /root/build
 RUN ~/.dotnet/tools/fake build -f build.fsx --target Bundle
 
 FROM  microsoft/dotnet:2.2-aspnetcore-runtime
-WORKDIR /root/
+WORKDIR /registry
 COPY --from=builder /root/build/deploy .
 EXPOSE 8085/tcp
-WORKDIR /root/Server
+WORKDIR /registry/Server
+RUN chgrp -R 0 /registry/Server && \
+    chmod -R g=u /registry/Server
 CMD ["dotnet", "Server.dll"]
 ARG GIT_CHANGESET
 RUN echo "$GIT_CHANGESET" > /git_changeset_info
+USER 1023
