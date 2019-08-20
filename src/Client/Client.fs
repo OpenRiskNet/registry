@@ -165,7 +165,7 @@ let ornServicesTestValues =
           Endpoints = ["/algorithm" ; "/api/api.json"; "/algorithm/DecisionStump/bagging" ]
           OpenApiUrl = OpenApiUrl "http://someserivce/openapi.json"
           Name = "Jaqpot"
-          RetrievedAt = System.DateTime.UtcNow
+          RetrievedAt = System.DateTimeOffset.UtcNow
           }
     }]
 
@@ -174,9 +174,9 @@ let testServices =
 
 
 let testSparqlResult =
-  [ { ServiceName = "Test"
-      OpenApiUrl = OpenApiUrl "http://bla.com/openapi"
-      Result = BindingResult { Variables = ["subject"; "predicate"; "object"]; ResultValues = [["Lazar REST Service^^http://www.w3.org/2001/XMLSchema#string"; "identity"; "Lazar REST Service^^http://www.w3.org/2001/XMLSchema#string"]]}}]
+  [| { ServiceName = "Test"
+       OpenApiUrl = OpenApiUrl "http://bla.com/openapi"
+       Result = BindingResult { Variables = ["subject"; "predicate"; "object"]; ResultValues = [["Lazar REST Service^^http://www.w3.org/2001/XMLSchema#string"; "identity"; "Lazar REST Service^^http://www.w3.org/2001/XMLSchema#string"]]}} |]
 
 
 let init () : Model * Cmd<Msg> =
@@ -248,6 +248,7 @@ let view (model : Model) (dispatch : Msg -> unit) =
           | None -> []
           | Some results ->
               results
+              |> Array.toList
               |> List.collect (fun result ->
                     [   div [ ]
                            ([ h5 [] [ str result.ServiceName]
@@ -389,7 +390,7 @@ let view (model : Model) (dispatch : Msg -> unit) =
                                    [ str app.OpenApiServiceInformation.Name ]
                                 div [ ClassName "service__info service__info-item"]
                                   [ div [ ClassName "service__info-label"] [ str "Indexed at "]
-                                    div [ ClassName "service__info-value"] [ str (app.OpenApiServiceInformation.RetrievedAt.ToShortDateString() + " " + app.OpenApiServiceInformation.RetrievedAt.ToShortTimeString()) ]
+                                    div [ ClassName "service__info-value"] [ str (app.OpenApiServiceInformation.RetrievedAt.ToString("u")) ]
                                   ]
                                 div [ ClassName "service__description"] [ str app.OpenApiServiceInformation.Description ]
                                 br []
