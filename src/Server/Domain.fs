@@ -15,6 +15,11 @@ open DouglasConnect.Http
 
 let mutable ExternalServices = Set.empty<string>
 
+let jsonText (str : string)=
+  fun (next : HttpFunc) (ctx : Http.HttpContext) ->
+    ctx.SetContentType "application/json; charset=utf-8"
+    setBodyFromString str next ctx
+
 let getCurrentServices (logger : ILogger) : Async<Shared.ActiveServices> =
   async {
 
@@ -255,7 +260,7 @@ let rawOpenApiHandler : HttpHandler =
                | OpenApiServicesAgent.Failed _ -> None)
         match registeredService with
         | Some { OpenApiRetrievalInformation = Some {OpenApiString = OpenApiRaw rawOpenApi} } ->
-          return! Giraffe.HttpStatusCodeHandlers.Successful.ok (text rawOpenApi) next ctx
+          return! Giraffe.HttpStatusCodeHandlers.Successful.ok (jsonText rawOpenApi) next ctx
         | _ ->
           return! Giraffe.HttpStatusCodeHandlers.ServerErrors.INTERNAL_ERROR "Could not retrieve OpenApi for requested service" next ctx
       else
@@ -280,7 +285,7 @@ let dereferencedOpenApiHandler : HttpHandler =
         match registeredService with
         | Some { DereferencedOpenApi = Some (OpenApiFixedContextEntry dereferencedOpenApi) } ->
           ctx.SetHttpHeader "Content-Type" "application/json"
-          return! Giraffe.HttpStatusCodeHandlers.Successful.ok (text dereferencedOpenApi) next ctx
+          return! Giraffe.HttpStatusCodeHandlers.Successful.ok (jsonText dereferencedOpenApi) next ctx
         | _ ->
           return! Giraffe.HttpStatusCodeHandlers.ServerErrors.INTERNAL_ERROR "Could not retrieve OpenApi for requested service" next ctx
       else
