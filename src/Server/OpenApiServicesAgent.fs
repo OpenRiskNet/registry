@@ -71,7 +71,8 @@ type OpenRiskNetServicesAgent(cancelToken : CancellationToken) =
       }
 
     let agent = Agent.Start(agentFunction, cancelToken)
+    member this.ServiceMap = serviceMap
 
     interface IOpenApiServicesAgent with
         member this.Post(message : ServiceMessage) = agent.Post(message)
-        member this.ReadonlyState = serviceMap //TODO: if there is a weird error that no services sho up then the reason could be that this is a closure which I hope it is not
+        member this.ReadonlyState = this.ServiceMap
