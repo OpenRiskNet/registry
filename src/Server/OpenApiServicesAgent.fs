@@ -57,8 +57,8 @@ type OpenRiskNetServicesAgent(cancelToken : CancellationToken) =
       | Some updatedMap ->
         serviceMap <- updatedMap
       | None ->
-        printfn "Could not find key %O" key
-        ()
+        let added = Map.add key newval serviceMap
+        serviceMap <- added
 
     let rec agentFunction (agent : Agent<ServiceMessage>) =
       async {
