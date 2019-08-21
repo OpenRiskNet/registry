@@ -68,11 +68,11 @@ type OpenRiskNetServicesAgent(cancelToken : CancellationToken) =
           updateServiceMap url information
         | RemoveService url ->
           serviceMap <- serviceMap |> Map.remove url
+        do! agentFunction(agent)
       }
 
     let agent = Agent.Start(agentFunction, cancelToken)
-    member this.ServiceMap = serviceMap
 
     interface IOpenApiServicesAgent with
         member this.Post(message : ServiceMessage) = agent.Post(message)
-        member this.ReadonlyState = this.ServiceMap
+        member this.ReadonlyState = serviceMap
