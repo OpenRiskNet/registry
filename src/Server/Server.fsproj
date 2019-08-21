@@ -4,6 +4,10 @@
         <OutputType>Exe</OutputType>
         <TargetFramework>netcoreapp2.1</TargetFramework>
     </PropertyGroup>
+
+    <ItemGroup>
+        <None Include="appsettings.yaml" CopyToPublishDirectory="Always" />
+    </ItemGroup>
     <ItemGroup>
         <Compile Include="..\Shared\Shared.fs" />
         <Compile Include="Views\SwaggerUi.fs" />

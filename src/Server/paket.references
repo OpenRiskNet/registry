@@ -18,3 +18,4 @@ group Server
     Newtonsoft.Json
     NetEscapades.Configuration.Yaml
     Microsoft.AspNetCore.HttpOverrides
+    Microsoft.AspNetCore.Authentication.JwtBearer

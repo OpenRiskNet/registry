@@ -6,6 +6,7 @@ group Server
     nuget FSharp.Core
     nuget Giraffe
     nuget Microsoft.AspNetCore
+    nuget Microsoft.AspNetCore.Authentication.JwtBearer
     nuget Microsoft.AspNetCore.StaticFiles
     nuget KubernetesClient
     nuget dotNetRDF >= 2.0.0

@@ -12,10 +12,29 @@ open Orn.Registry.OpenApiProcessing
 open Orn.Registry.JsonLdParsing
 open Orn.Registry.Shared
 open DouglasConnect.Http
+open System.Security
 
 let mutable ExternalServices = Set.empty<string>
 
-let getCurrentServices (logger : ILogger) : Async<Shared.ActiveServices> =
+type Email =
+  | Email of string
+
+let userEmail (ctx: Http.HttpContext) : Email option =
+    if not (isNull ctx.User) && ctx.User.Identity.IsAuthenticated then
+        ctx.User.FindFirst Claims.ClaimTypes.Email
+        |> function
+           | null -> None
+           | claim -> claim.Value |> Email |> Some
+    else
+        None
+
+let requireUserHandler (handler : Email -> HttpHandler) : HttpHandler =
+  fun next ctx ->
+      match userEmail ctx with
+      | Some user -> handler user next ctx
+      | None -> challenge Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerDefaults.AuthenticationScheme next ctx
+
+let getCurrentServices (logger : ILogger) email : Async<Shared.ActiveServices> =
   async {
 
     logger.LogInformation "Entered getCurrentServices"
@@ -91,11 +110,11 @@ let getCurrentServices (logger : ILogger) : Async<Shared.ActiveServices> =
   }
 
 
-let getCurrentServicesHandler : HttpHandler =
+let getCurrentServicesHandler email : HttpHandler =
     fun next (ctx : Http.HttpContext) ->
       task {
         let logger = ctx.GetLogger()
-        let! services = getCurrentServices(logger)
+        let! services = getCurrentServices logger email
         return! Successful.ok (json services) next ctx
       }
 

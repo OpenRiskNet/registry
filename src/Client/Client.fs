@@ -67,8 +67,10 @@ let tabToLabel = function
 | SparqlQueryTab -> "SparQL query"
 | ExternalServices -> "External services"
 
+type AuthToken = AuthToken of string
+
 type LoginInfo =
-  { Token : string
+  { Token : AuthToken
     UserId : string }
 
 type AppModel =
@@ -122,10 +124,13 @@ let buildUrl (baseString : string) (parameters : (string * string list) list) : 
     | _ :: _ -> "?" + (String.concat "&" parameters)
   baseString + paramsString
 
-let refresh =
+let authHeader (AuthToken authToken) =
+  HttpRequestHeaders.Authorization (sprintf "Bearer: %s" authToken)
+
+let refresh token =
     Cmd.ofPromise
       (fetchAs<ActiveServices> "/api/services" (Decode.Auto.generateDecoder()))
-      []
+      [ Fetch.requestHeaders [ authHeader token ]]
       (Ok >> Refresh)
       (Error >> Refresh)
 
@@ -144,17 +149,19 @@ let runSparqlQuery selectedSparqlService query =
       (Ok >> SparqlQueryFinished)
       (Error >> SparqlQueryFinished)
 
-let addExternalService service =
+let addExternalService token service =
     Cmd.ofPromise
       (fetch (buildUrl "/api/external-services" [("service", [service])]))
-      [ RequestProperties.Method HttpMethod.POST]
+      [ RequestProperties.Method HttpMethod.POST
+        Fetch.requestHeaders [ authHeader token ]]
       (Ok >> AddExternalServiceRequestCompleted)
       (Error >> AddExternalServiceRequestCompleted)
 
-let removeExternalService service =
+let removeExternalService token service =
     Cmd.ofPromise
       (fetch (buildUrl "/api/external-services" [("service", [service])]))
-      [ RequestProperties.Method HttpMethod.DELETE]
+      [ RequestProperties.Method HttpMethod.DELETE
+        Fetch.requestHeaders [ authHeader token ]]
       (Ok >> AddExternalServiceRequestCompleted)
       (Error >> AddExternalServiceRequestCompleted)
 
@@ -238,14 +245,14 @@ let update (msg : Msg) (model : Model) : Model * Cmd<Msg> =
           | QueryChanged query ->
             JS.console.log("Query updated", [query])
             { appModel with SparqlQuery = query}, Cmd.none
-          | Awake -> appModel, refresh
+          | Awake -> appModel, refresh appModel.LoginInfo.Token
           | TabChanged newTab -> { appModel with ActiveTab = newTab}, Cmd.none
           | ExternalServiceTextFieldChanged newText ->
               { appModel with ExternalServiceTextFieldContent = newText }, Cmd.none
           | AddExternalService ->
-              appModel, addExternalService appModel.ExternalServiceTextFieldContent
+              appModel, addExternalService appModel.LoginInfo.Token appModel.ExternalServiceTextFieldContent
           | RemoveExternalService service ->
-              appModel, removeExternalService service
+              appModel, removeExternalService appModel.LoginInfo.Token service
           | AddExternalServiceRequestCompleted (Ok _) -> appModel, Cmd.none
           | AddExternalServiceRequestCompleted (Error err) ->
             Fable.Import.JS.console.log("Error:", [err])
@@ -261,7 +268,7 @@ let update (msg : Msg) (model : Model) : Model * Cmd<Msg> =
       let initialServices, initialCommand, initialResults =
         if localDebugMode
         then testServices, Cmd.none, Some testSparqlResult
-        else ServicesLoading, refresh, None
+        else ServicesLoading, refresh loginInfo.Token, None
 
       let newappModel =
         { Services = initialServices
@@ -533,7 +540,7 @@ let keycloakInit (keycloak : IKeycloak) initialModel =
       if not isAuthenticated then
         keycloak.login() |> ignore
       else
-        dispatch(KeycloakInit (Ok { Token = keycloak.token; UserId = keycloak.subject}))
+        dispatch(KeycloakInit (Ok { Token = AuthToken keycloak.token; UserId = keycloak.subject}))
     let sendInitError(err) =
       dispatch(KeycloakInit(Error(err)))
     keycloak.init().success(sendInitOk).error(sendInitError) |> ignore
