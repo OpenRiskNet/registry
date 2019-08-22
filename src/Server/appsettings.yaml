@@ -1,2 +1,2 @@
 Jwt:
-  KeycloakDomain: sso.prod.openrisknet.org
+  KeycloakDomain: sso.prod.openrisknet.org/auth/realms/master
