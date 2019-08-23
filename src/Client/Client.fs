@@ -2,6 +2,8 @@ module Client
 
 open Elmish
 open Elmish.React
+open Elmish.HMR
+open Elmish.Debug.Debugger
 
 open Fable.Core
 open Fable.Core.JsInterop
