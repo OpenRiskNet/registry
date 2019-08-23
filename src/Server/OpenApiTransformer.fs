@@ -15,48 +15,46 @@ open Orn.Registry.BasicTypes
 open Orn.Registry
 open Orn.Registry.Shared
 
-let DereferenceOpenApi (openapiDocument : Microsoft.OpenApi.Models.OpenApiDocument) : Microsoft.OpenApi.Models.OpenApiDocument =
-  let visitor = DereferencingVisitor(openapiDocument.Components)
-  let walker = OpenApiWalker(visitor)
-  walker.Walk(openapiDocument)
-  openapiDocument
+let DereferenceOpenApi(openapiDocument: Microsoft.OpenApi.Models.OpenApiDocument): Microsoft.OpenApi.Models.OpenApiDocument =
+    let visitor = DereferencingVisitor(openapiDocument.Components)
+    let walker = OpenApiWalker(visitor)
+    walker.Walk(openapiDocument)
+    openapiDocument
 
-let ParseAndDereferenceOpenApi (OpenApiRaw openApiYaml) =
-  let openApiAsBytes = System.Text.Encoding.UTF8.GetBytes(openApiYaml)
-  use stream = new MemoryStream(openApiAsBytes)
-  let diagnostics = OpenApiDiagnostic()
-  let reader = OpenApiStreamReader()
-  let openapi = reader.Read(stream, ref diagnostics)
-  if Seq.isEmpty diagnostics.Errors then
-    let validator = OpenApiValidator(Microsoft.OpenApi.Validations.ValidationRuleSet.GetDefaultRuleSet())
-    validator.Visit(openapi)
-    if (Seq.isEmpty validator.Errors) then
-      let dereferenced = DereferenceOpenApi openapi
-      Ok dereferenced
-    else
-      Error (sprintf "%A" validator.Errors)
-  else
-    Error (sprintf "%A" diagnostics.Errors)
+let ParseAndDereferenceOpenApi(OpenApiRaw openApiYaml) =
+    let openApiAsBytes = System.Text.Encoding.UTF8.GetBytes(openApiYaml)
+    use stream = new MemoryStream(openApiAsBytes)
+    let diagnostics = OpenApiDiagnostic()
+    let reader = OpenApiStreamReader()
+    let openapi = reader.Read(stream, ref diagnostics)
+    if Seq.isEmpty diagnostics.Errors then
+        let validator = OpenApiValidator(Microsoft.OpenApi.Validations.ValidationRuleSet.GetDefaultRuleSet())
+        validator.Visit(openapi)
+        if (Seq.isEmpty validator.Errors) then
+            let dereferenced = DereferenceOpenApi openapi
+            Ok dereferenced
+        else Error(sprintf "%A" validator.Errors)
+    else Error(sprintf "%A" diagnostics.Errors)
 
 let TransformOpenApiToV3Dereferenced retrievedAt openApiUrl openApiString =
-  result {
-    let! openapi = ParseAndDereferenceOpenApi openApiString
-    use writer = new StringWriter()
-    let openapiWriter = OpenApiJsonWriter(writer)
-    // TODO: extract more useful information (endpoints? tags?)
-    let endpoints = openapi.Paths.Keys
-    let description = { Description = openapi.Info.Description
-                        Endpoints = endpoints |> List.ofSeq
-                        OpenApiUrl = openApiUrl
-                        Name = openapi.Info.Title
-                        RetrievedAt = retrievedAt }
-    try
-      openapi.SerializeAsV3 openapiWriter
-      return description, OpenApiDereferenced (writer.ToString())
-    with
-    | ex ->
-      return! Error (ex.ToString())
-  }
+    result {
+        let! openapi = ParseAndDereferenceOpenApi openApiString
+        use writer = new StringWriter()
+        let openapiWriter = OpenApiJsonWriter(writer)
+        // TODO: extract more useful information (endpoints? tags?)
+        let endpoints = openapi.Paths.Keys
+
+        let description =
+            { Description = openapi.Info.Description
+              Endpoints = endpoints |> List.ofSeq
+              OpenApiUrl = openApiUrl
+              Name = openapi.Info.Title
+              RetrievedAt = retrievedAt }
+        try
+            openapi.SerializeAsV3 openapiWriter
+            return description, OpenApiDereferenced(writer.ToString())
+        with ex -> return! Error(ex.ToString())
+    }
 
 let testOpenAPI = """
 # ChemIdConvert - Chemical identifier conversion service
