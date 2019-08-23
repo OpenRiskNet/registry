@@ -1,10 +1,9 @@
 module Orn.Registry.Auth
 
 open Microsoft.AspNetCore.Authentication.JwtBearer
-open Microsoft.IdentityModel.Protocols.OpenIdConnect
 open Microsoft.IdentityModel.Tokens
-open System.IdentityModel.Tokens
-open System.Security
+open Microsoft.Extensions.Configuration
+open Microsoft.Extensions.DependencyInjection
 let scheme = JwtBearerDefaults.AuthenticationScheme
 let configureKeycloak (config : IConfiguration) (services : IServiceCollection) =
     printfn "Keycloak domain: %s" config.["Jwt:KeycloakDomain"]

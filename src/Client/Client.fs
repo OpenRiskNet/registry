@@ -448,7 +448,7 @@ let appView (model : AppModel) (dispatch : AppMsg -> unit) =
                                    [ str app.OpenApiServiceInformation.Name ]
                                 div [ ClassName "service__info service__info-item"]
                                   [ div [ ClassName "service__info-label"] [ str "Indexed at "]
-                                    div [ ClassName "service__info-value"] [ str (app.OpenApiServiceInformation.RetrievedAt.ToString("u")) ]
+                                    div [ ClassName "service__info-value"] [ str (app.OpenApiServiceInformation.RetrievedAt.ToString("yyyy-MMM-dd HH:mm:ss")) ]
                                   ]
                                 div [ ClassName "service__description"] [ str app.OpenApiServiceInformation.Description ]
                                 br []

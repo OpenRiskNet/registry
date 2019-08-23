@@ -57,8 +57,8 @@ type OpenRiskNetServicesAgent(cancelToken : CancellationToken) =
       | Some updatedMap ->
         serviceMap <- updatedMap
       | None ->
-        printfn "Could not find key %O" key
-        ()
+        let added = Map.add key newval serviceMap
+        serviceMap <- added
 
     let rec agentFunction (agent : Agent<ServiceMessage>) =
       async {
@@ -68,10 +68,11 @@ type OpenRiskNetServicesAgent(cancelToken : CancellationToken) =
           updateServiceMap url information
         | RemoveService url ->
           serviceMap <- serviceMap |> Map.remove url
+        do! agentFunction(agent)
       }
 
     let agent = Agent.Start(agentFunction, cancelToken)
 
     interface IOpenApiServicesAgent with
         member this.Post(message : ServiceMessage) = agent.Post(message)
-        member this.ReadonlyState = serviceMap //TODO: if there is a weird error that no services sho up then the reason could be that this is a closure which I hope it is not
+        member this.ReadonlyState = serviceMap

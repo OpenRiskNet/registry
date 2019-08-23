@@ -31,6 +31,11 @@ let requireUserHandler (handler : Email -> HttpHandler) : HttpHandler =
         | Some user -> handler user next ctx
         | None -> challenge Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerDefaults.AuthenticationScheme next ctx
 
+let jsonText (str : string)=
+    fun (next : HttpFunc) (ctx : Http.HttpContext) ->
+      ctx.SetContentType "application/json; charset=utf-8"
+      setBodyFromString str next ctx
+
 let getCurrentServicesHandler email : HttpHandler =
     fun next (ctx : Http.HttpContext) ->
       task {
@@ -69,6 +74,19 @@ let removeExternalServiceHandler email : HttpHandler =
               ExternalServices <- Set.remove service.[0] ExternalServices
               return! Successful.NO_CONTENT next ctx
           }
+let prettifyJson (jsonString : string) : Result<string, string> =
+    try
+      use reader = new System.IO.StringReader(jsonString)
+      use writer = new System.IO.StringWriter()
+      let jsonReader = new Newtonsoft.Json.JsonTextReader(reader)
+      let jsonWriter = new Newtonsoft.Json.JsonTextWriter(writer)
+      jsonWriter.Formatting <- Newtonsoft.Json.Formatting.Indented
+      jsonWriter.WriteToken(jsonReader)
+      writer.ToString() |> Ok
+    with
+    | ex ->
+      Error (ex.Message)
+
 let runSparqlQueryHandler : HttpHandler =
     fun next (ctx : Http.HttpContext) ->
       task {
@@ -77,7 +95,7 @@ let runSparqlQueryHandler : HttpHandler =
         let hasQuery, query = ctx.Request.Query.TryGetValue "query"
         let hasService, serviceValues = ctx.Request.Query.TryGetValue "service"
         if not hasQuery then
-          return! Giraffe.HttpStatusCodeHandlers.RequestErrors.BAD_REQUEST (text "Could not find query parameter 'query'") next ctx
+          return! RequestErrors.BAD_REQUEST (text "Could not find query parameter 'query'") next ctx
         else
           logger.LogInformation("Query is:", query)
           let service =
@@ -116,18 +134,7 @@ let swaggerUiHandler : HttpHandler =
             else
               return! RequestErrors.NOT_FOUND "Please specify a valid service url in the service query parameter!" next ctx
           }
-let prettifyJson (jsonString : string) : Result<string, string> =
-    try
-      use reader = new System.IO.StringReader(jsonString)
-      use writer = new System.IO.StringWriter()
-      let jsonReader = new Newtonsoft.Json.JsonTextReader(reader)
-      let jsonWriter = new Newtonsoft.Json.JsonTextWriter(writer)
-      jsonWriter.Formatting <- Newtonsoft.Json.Formatting.Indented
-      jsonWriter.WriteToken(jsonReader)
-      writer.ToString() |> Ok
-    with
-    | ex ->
-      Error (ex.Message)
+
 let rawOpenApiHandler : HttpHandler =
     fun next (ctx : Http.HttpContext) ->
       task {
@@ -148,10 +155,9 @@ let rawOpenApiHandler : HttpHandler =
               let prettyJsonResult = prettifyJson rawOpenApi
               match prettyJsonResult with
               | Ok prettyJson ->
-                ctx.SetHttpHeader "Content-Type" "application/json"
-                return! Successful.ok (text prettyJson) next ctx
+                return! Successful.ok (jsonText prettyJson) next ctx
               | Error err ->
-                return! Successful.ok (text (rawOpenApi)) next ctx
+                return! Successful.ok (jsonText (rawOpenApi)) next ctx
           | _ ->
             return! ServerErrors.INTERNAL_ERROR "Could not retrieve OpenApi for requested service" next ctx
         else
@@ -175,15 +181,14 @@ let dereferencedOpenApiHandler : HttpHandler =
                  | OpenApiServicesAgent.Failed _ -> None)
           match registeredService with
           | Some { DereferencedOpenApi = Some (OpenApiFixedContextEntry dereferencedOpenApi) } ->
-            let prettyJsonResult = prettifyJson dereferencedOpenApi
-            match prettyJsonResult with
-            | Ok prettyJson ->
-              ctx.SetHttpHeader "Content-Type" "application/json"
-              return! Successful.ok (text prettyJson) next ctx
-            | Error err ->
-              return! Successful.ok (text dereferencedOpenApi) next ctx
+              let prettyJsonResult = prettifyJson dereferencedOpenApi
+              match prettyJsonResult with
+              | Ok prettyJson ->
+                  return! Successful.ok (jsonText prettyJson) next ctx
+              | Error err ->
+                  return! Successful.ok (jsonText dereferencedOpenApi) next ctx
           | _ ->
-            return! ServerErrors.INTERNAL_ERROR "Could not retrieve OpenApi for requested service" next ctx
+            return! Giraffe.HttpStatusCodeHandlers.ServerErrors.INTERNAL_ERROR "Could not retrieve OpenApi for requested service" next ctx
         else
-          return! RequestErrors.NOT_FOUND "Please specify a valid service url in the service query parameter!" next ctx
+          return! Giraffe.HttpStatusCodeHandlers.RequestErrors.NOT_FOUND "Please specify a valid service url in the service query parameter!" next ctx
       }
