@@ -1,3 +1,5 @@
+module Orn.Registry.Server
+
 open System
 open System.IO
 open System.Threading.Tasks
@@ -8,17 +10,10 @@ open Microsoft.AspNetCore.Hosting
 open Microsoft.Extensions.Logging
 open Microsoft.Extensions.DependencyInjection
 open Microsoft.Extensions.Configuration
-open Microsoft.AspNetCore.Authentication.JwtBearer
-open Microsoft.IdentityModel.Protocols.OpenIdConnect
-open Microsoft.IdentityModel.Tokens
-open System.IdentityModel.Tokens
-open System.Security
+open Orn.Registry.Auth
 
-open FSharp.Control.Tasks.V2
 
-open Orn.Registry.Shared
-
-open Orn.Registry.Domain
+open Orn.Registry.Handlers
 open Giraffe
 
 let publicPath = Path.GetFullPath "../Client/public"
@@ -42,25 +37,6 @@ let buildConfig (config : IConfigurationBuilder) =
     config.SetBasePath(System.IO.Directory.GetCurrentDirectory())
           .AddYamlFile("appsettings.yaml", optional = false, reloadOnChange = true)
           .AddEnvironmentVariables()
-    |> ignore
-
-let scheme = JwtBearerDefaults.AuthenticationScheme
-
-
-let configureKeycloak (config : IConfiguration) (services : IServiceCollection) =
-    printfn "Keycloak domain: %s" config.["Jwt:KeycloakDomain"]
-    services
-        .AddAuthentication(fun config ->
-            config.DefaultAuthenticateScheme <- scheme
-            config.DefaultChallengeScheme <- scheme)
-        .AddJwtBearer(fun options ->
-            printfn "Configuring jwt bearer options"
-            options.Authority <- sprintf "https://%s" config.["Jwt:KeycloakDomain"]
-            options.TokenValidationParameters <-
-            TokenValidationParameters(
-                ValidateAudience = false
-      )
-        )
     |> ignore
 
 let configureApp (app : IApplicationBuilder) =
