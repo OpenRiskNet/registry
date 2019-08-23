@@ -11,6 +11,8 @@ open Microsoft.Extensions.Configuration
 open Microsoft.AspNetCore.Authentication.JwtBearer
 open Microsoft.IdentityModel.Protocols.OpenIdConnect
 open Microsoft.IdentityModel.Tokens
+open System.IdentityModel.Tokens
+open System.Security
 
 open FSharp.Control.Tasks.V2
 
@@ -28,8 +30,8 @@ let webApp =
         OPTIONS >=> Successful.NO_CONTENT
         route "/api/sparql" >=> GET >=> runSparqlQueryHandler
         route "/api/services" >=> GET >=> requireUserHandler getCurrentServicesHandler
-        route "/api/external-services" >=> POST >=> addExternalServiceHandler
-        route "/api/external-services" >=> DELETE >=> removeExternalServiceHandler
+        route "/api/external-services" >=> POST >=> requireUserHandler addExternalServiceHandler
+        route "/api/external-services" >=> DELETE >=> requireUserHandler removeExternalServiceHandler
         // route "/applications"
         route "/swaggerui" >=> GET >=> swaggerUiHandler
         route "/openapi-raw" >=> GET >=> rawOpenApiHandler
@@ -44,13 +46,22 @@ let buildConfig (config : IConfigurationBuilder) =
 
 let scheme = JwtBearerDefaults.AuthenticationScheme
 
+
 let configureKeycloak (config : IConfiguration) (services : IServiceCollection) =
+    printfn "Keycloak domain: %s" config.["Jwt:KeycloakDomain"]
     services
-      .AddAuthentication(scheme)
-      .AddJwtBearer(fun options ->
-        options.Authority <- sprintf "https://%s" config.["Jwt:KeycloakDomain"]
+        .AddAuthentication(fun config ->
+            config.DefaultAuthenticateScheme <- scheme
+            config.DefaultChallengeScheme <- scheme)
+        .AddJwtBearer(fun options ->
+            printfn "Configuring jwt bearer options"
+            options.Authority <- sprintf "https://%s" config.["Jwt:KeycloakDomain"]
+            options.TokenValidationParameters <-
+            TokenValidationParameters(
+                ValidateAudience = false
       )
-      |> ignore
+        )
+    |> ignore
 
 let configureApp (app : IApplicationBuilder) =
     app.UseDefaultFiles()

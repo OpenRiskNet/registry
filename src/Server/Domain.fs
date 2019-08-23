@@ -119,7 +119,7 @@ let getCurrentServicesHandler email : HttpHandler =
       }
 
 
-let addExternalServiceHandler : HttpHandler =
+let addExternalServiceHandler email : HttpHandler =
   fun next (ctx : Http.HttpContext) ->
     task {
       let logger = ctx.GetLogger()
@@ -135,7 +135,7 @@ let addExternalServiceHandler : HttpHandler =
     }
 
 
-let removeExternalServiceHandler : HttpHandler =
+let removeExternalServiceHandler email : HttpHandler =
   fun next (ctx : Http.HttpContext) ->
     task {
       let logger = ctx.GetLogger()

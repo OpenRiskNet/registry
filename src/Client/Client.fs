@@ -125,7 +125,7 @@ let buildUrl (baseString : string) (parameters : (string * string list) list) : 
   baseString + paramsString
 
 let authHeader (AuthToken authToken) =
-  HttpRequestHeaders.Authorization (sprintf "Bearer: %s" authToken)
+  HttpRequestHeaders.Authorization (sprintf "Bearer %s" authToken)
 
 let refresh token =
     Cmd.ofPromise
