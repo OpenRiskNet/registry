@@ -11,22 +11,25 @@ open Orn.Registry.Client.View
 
 
 [<Emit("keycloak")>]
-let keycloak : IKeycloak = jsNative
+let keycloak: IKeycloak = jsNative
 
-let keycloakInit (keycloak : IKeycloak) initialModel =
-  let sub dispatch =
-    let sendInitOk(isAuthenticated : bool) =
-      if not isAuthenticated then
-        keycloak.login() |> ignore
-      else
-        dispatch(KeycloakInit (Ok { Token = AuthToken keycloak.token; UserId = keycloak.subject}))
-    let sendInitError(err) =
-      dispatch(KeycloakInit(Error(err)))
-    keycloak.init().success(sendInitOk).error(sendInitError) |> ignore
-  Cmd.ofSub sub
+let keycloakInit (keycloak: IKeycloak) initialModel =
+    let sub dispatch =
+        let sendInitOk (isAuthenticated: bool) =
+            if not isAuthenticated then keycloak.login() |> ignore
+            else
+                dispatch
+                    (KeycloakInit
+                        (Ok
+                            { Token = AuthToken keycloak.token
+                              UserId = keycloak.subject }))
+
+        let sendInitError (err) = dispatch (KeycloakInit(Error(err)))
+        keycloak.init().success(sendInitOk).error(sendInitError) |> ignore
+    Cmd.ofSub sub
 
 
-let isAuthenticated : bool = (keycloak?authenticated)
+let isAuthenticated: bool = (keycloak?authenticated)
 
 #if DEBUG
 open Elmish.Debug
@@ -35,12 +38,8 @@ open Elmish.HMR
 
 Program.mkProgram init update view
 |> Program.withSubscription (keycloakInit keycloak)
-#if DEBUG
 |> Program.withConsoleTrace
 |> Program.withHMR
-#endif
 |> Program.withReact "elmish-app"
-#if DEBUG
 |> Program.withDebugger
-#endif
 |> Program.runWith keycloak
