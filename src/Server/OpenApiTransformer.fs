@@ -45,7 +45,7 @@ let TransformOpenApiToV3Dereferenced retrievedAt openApiUrl openApiString =
         let endpoints = openapi.Paths.Keys
 
         let description =
-            { Description = openapi.Info.Description
+            { Description = if isNull openapi.Info.Description then "" else openapi.Info.Description
               Endpoints = endpoints |> List.ofSeq
               OpenApiUrl = openApiUrl
               Name = openapi.Info.Title
