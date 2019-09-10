@@ -26,3 +26,7 @@ let millisecondsPerSecond = 1000.0<millisecond/FSharp.Data.UnitSystems.SI.UnitNa
 
 let secondsToTimeSpan (time: float<FSharp.Data.UnitSystems.SI.UnitNames.second>): System.TimeSpan =
     System.TimeSpan.FromSeconds(float time)
+
+
+let runningProcess = System.Diagnostics.Process.GetCurrentProcess()
+let getUsedMemoryInMb() = float runningProcess.PrivateMemorySize64 / 1_000_000.0

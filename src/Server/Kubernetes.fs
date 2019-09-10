@@ -55,7 +55,7 @@ type UpdateAgent(feedbackAgent: Feedback.IFeedbackAgent, processingAgent: OpenAp
                             for service in items do
                                 let! metadata = service.Metadata
                                 let! name = metadata.Name
-                                printfn "Collecting metadata for service %s" name
+                                // printfn "Collecting metadata for service %s" name
                                 let! namespaceProperty = metadata.NamespaceProperty
                                 let! spec = service.Spec
                                 let! ports = spec.Ports
@@ -67,7 +67,7 @@ type UpdateAgent(feedbackAgent: Feedback.IFeedbackAgent, processingAgent: OpenAp
                                         |> Seq.map (fun kvpair -> (kvpair.Key, kvpair.Value))
                                         |> Map.ofSeq
 
-                                printfn "Metadata collected"
+                                // printfn "Metadata collected"
                                 yield { Id = ServiceIdentifier name
                                         Name = name
                                         Namespace = namespaceProperty
@@ -102,12 +102,14 @@ type UpdateAgent(feedbackAgent: Feedback.IFeedbackAgent, processingAgent: OpenAp
                     match openRiskNetOpenApiUrl with
                     | Some rawurls ->
                         let urls = rawurls.Split('|') |> Array.map (fun url -> url.Trim())
-                        printfn "OpenRiskNet definition found for service %s" service.Name
+                        // printfn "OpenRiskNet definition found for service %s" service.Name
                         for url in urls do
                             processingAgent.Post
                                 (OpenApiProcessing.IndexNewUrl
                                     (OpenApiUrl url, None, 60.0<FSharp.Data.UnitSystems.SI.UnitNames.second>))
-                    | None -> printfn "No openrisknet definition given for %s" service.Name
+                    | None ->
+                        //printfn "No openrisknet definition given for %s" service.Name
+                        ()
 
                 for service in removedServices do
                     let openRiskNetOpenApiUrl = service.Annotations |> Map.tryFind Constants.OpenApiLabelStaticServices

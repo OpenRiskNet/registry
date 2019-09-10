@@ -89,7 +89,7 @@ type DereferencingVisitor (components : OpenApiComponents) =
     match parameter.Reference with
     | null -> ()
     | reference ->
-        printfn "Dereferencing: %s" reference.ReferenceV3
+        // printfn "Dereferencing: %s" reference.ReferenceV3
         let copyFromReference (parameter : OpenApiParameter) (dereferencedParameter : OpenApiParameter) =
           parameter.AllowEmptyValue <- dereferencedParameter.AllowEmptyValue
           parameter.AllowReserved <- dereferencedParameter.AllowReserved
@@ -123,7 +123,7 @@ type DereferencingVisitor (components : OpenApiComponents) =
     match requestBody.Reference with
     | null -> ()
     | reference ->
-        printfn "Dereferencing: %s" reference.ReferenceV3
+        // printfn "Dereferencing: %s" reference.ReferenceV3
         let copyFromReference (requestBody : OpenApiRequestBody) (dereferencedRequestBody : OpenApiRequestBody) =
           requestBody.Content <- dereferencedRequestBody.Content
           requestBody.Description <- dereferencedRequestBody.Description
@@ -160,7 +160,7 @@ type DereferencingVisitor (components : OpenApiComponents) =
     match response.Reference with
     | null -> ()
     | reference ->
-        printfn "Dereferencing: %s" reference.Id
+        // printfn "Dereferencing: %s" reference.Id
         let copyFromReference (response : OpenApiResponse) (dereferencedResponse : OpenApiResponse) =
           response.Content <- dereferencedResponse.Content
           response.Description <- dereferencedResponse.Description
@@ -230,7 +230,7 @@ type DereferencingVisitor (components : OpenApiComponents) =
     match schema.Reference with
     | null -> ()
     | reference ->
-        printfn "Dereferencing: %s" reference.ReferenceV3
+        // printfn "Dereferencing: %s" reference.ReferenceV3
         let copyFromReference (schema : OpenApiSchema) (dereferencedSchema : OpenApiSchema) =
           schema.AdditionalProperties <- dereferencedSchema.AdditionalProperties
           schema.AllOf <- dereferencedSchema.AllOf

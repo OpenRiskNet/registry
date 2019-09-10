@@ -30,7 +30,9 @@ let webApp =
           // route "/applications"
           route "/swaggerui" >=> GET >=> swaggerUiHandler
           route "/openapi-raw" >=> GET >=> rawOpenApiHandler
-          route "/openapi-dereferenced" >=> GET >=> dereferencedOpenApiHandler ]
+          route "/openapi-dereferenced" >=> GET >=> dereferencedOpenApiHandler
+          route "/health" >=> GET >=> Successful.NO_CONTENT
+          route "/stats" >=> GET >=> getStats ]
 
 let buildConfig (config: IConfigurationBuilder) =
     config.SetBasePath(System.IO.Directory.GetCurrentDirectory())

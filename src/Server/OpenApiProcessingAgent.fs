@@ -66,6 +66,7 @@ type OpenApiProcessingAgent(feedbackAgent: Feedback.IFeedbackAgent, servicesAgen
                                                                                                                            (hash,
                                                                                                                             oldHash) ->
                                           // If the hash is still the same, return the old distilled information but update the retrieval time stamp
+                                          printfn "Downloading worked and is unchanged. "
                                           let updatedOpenApiServiceInformation =
                                               { oldServiceInfo.OpenApiServiceInformation with
                                                     RetrievedAt = System.DateTimeOffset.UtcNow }
@@ -108,7 +109,7 @@ type OpenApiProcessingAgent(feedbackAgent: Feedback.IFeedbackAgent, servicesAgen
 
                     match result with
                     | Ok(serviceInformation, tripleStore) ->
-                        printfn "Loading json-ld into triple store worked for service %s" url
+                        printfn "Loading json-ld into triple store worked for service %s - memory use is: %.2f MB" url (getUsedMemoryInMb())
                         servicesAgent.Post
                             (AddService
                                 (openApiUrl,

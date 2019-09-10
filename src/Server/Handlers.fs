@@ -193,3 +193,10 @@ let dereferencedOpenApiHandler: HttpHandler =
                 return! Giraffe.HttpStatusCodeHandlers.RequestErrors.NOT_FOUND
                             "Please specify a valid service url in the service query parameter!" next ctx
         }
+
+
+let getStats : HttpHandler =
+    fun next (ctx : Http.HttpContext) ->
+        task {
+            return! Successful.OK {| PrivateMemoryMb = getUsedMemoryInMb() |} next ctx
+        }
