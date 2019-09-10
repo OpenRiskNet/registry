@@ -4,6 +4,7 @@ RUN mkdir -p /root/build
 WORKDIR /root/build
 
 RUN dotnet tool install -g paket
+RUN dotnet tool install -g fake-cli
 ENV PATH=$PATH:/root/.dotnet/tools
 
 COPY ./paket.dependencies ./
@@ -18,9 +19,9 @@ COPY ./yarn.lock ./yarn.lock
 COPY ./build.fsx .
 
 WORKDIR /root/build
-RUN ~/.dotnet/tools/fake build -f build.fsx --target Bundle
+RUN fake build -f build.fsx --target Bundle
 
-FROM  microsoft/dotnet:2.2-aspnetcore-runtime
+FROM  mcr.microsoft.com/dotnet/core/aspnet:3.0
 WORKDIR /registry
 COPY --from=builder /root/build/deploy .
 EXPOSE 8085/tcp
