@@ -29,4 +29,4 @@ let secondsToTimeSpan (time: float<FSharp.Data.UnitSystems.SI.UnitNames.second>)
 
 
 let runningProcess = System.Diagnostics.Process.GetCurrentProcess()
-let getUsedMemoryInMb() = float runningProcess.PrivateMemorySize64 / 1_000_000.0
+let getUsedMemoryInMb() = float runningProcess.WorkingSet64 / 1_000_000.0
