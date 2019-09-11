@@ -16,6 +16,7 @@ type IKeycloak =
     abstract login: obj -> Unit
     abstract token: string
     abstract subject: string
+    abstract updateToken: float -> IKeycloakPromise<bool>
 
 type OntologySearchTerm =
     { Text: string

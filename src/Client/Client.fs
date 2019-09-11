@@ -15,6 +15,17 @@ open Orn.Registry.Client.View
 [<Emit("keycloak")>]
 let keycloak: IKeycloak = jsNative
 
+let rec refreshTokenEvery4Min() =
+    Fable.Import.JS.console.log("Refreshing the auth token!")
+    let refreshWorked (result : bool) =
+        ()
+    let refreshFailed (err) =
+        Fable.Import.JS.console.log("Refreshing the token failed!")
+    keycloak.updateToken(4.5*60.0).success(refreshWorked).error(refreshFailed) |> ignore
+    Fable.Import.JS.setTimeout refreshTokenEvery4Min (4*60*1000) |> ignore
+    ()
+
+
 let keycloakInit (keycloak: IKeycloak) initialModel =
     let sub dispatch =
         let sendInitOk (isAuthenticated: bool) =
@@ -28,6 +39,8 @@ let keycloakInit (keycloak: IKeycloak) initialModel =
 
         let sendInitError (err) = dispatch (KeycloakInit(Error(err)))
         keycloak.init().success(sendInitOk).error(sendInitError) |> ignore
+        Fable.Import.JS.setTimeout refreshTokenEvery4Min (4*60*1000) |> ignore
+
     Cmd.ofSub sub
 
 
