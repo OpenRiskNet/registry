@@ -51,6 +51,7 @@ module Constants =
 type Feedback =
   | OpenApiDownloadFailed of OpenApiUrl
   | OpenApiParsingFailed of OpenApiUrl * string
+  | ListDownloadFailed of string
   | JsonLdContextMissing of OpenApiUrl
   | JsonLdParsingError of OpenApiUrl * string
 

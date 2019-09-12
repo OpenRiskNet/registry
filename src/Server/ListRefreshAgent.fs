@@ -4,6 +4,8 @@ open Orn.Registry.BasicTypes
 open DouglasConnect.Http
 open Cvdm.ErrorHandling
 open Orn.Registry.Shared
+open Orn.Registry.OpenApiProcessing
+open System.Threading
 
 type ListProcessingMessage =
     | AddNewList of string * float<FSharp.Data.UnitSystems.SI.UnitNames.second>
@@ -15,88 +17,100 @@ type IListRefreshAgent = Orn.Registry.IAgent<bool, ListProcessingMessage> // The
 type OpenApiProcessingAgent(feedbackAgent: Feedback.IFeedbackAgent, openApiAgent: IOpenApiProcessingAgent, cancelToken: CancellationToken) =
     let mutable serviceListAgents = Map<string, Result<Orn.Registry.ServiceListAgent.IServiceListAgent, string>> []
 
-    let private retrieveOpenApiSet url =
+    let retrieveOpenApiSet url =
         asyncResult {
-            printfn "Downloading service list for %s" url
-            let headers =
-              [ FSharp.Data.HttpRequestHeaders.Accept FSharp.Data.HttpContentTypes.Json ]
-            let! text = SafeAsyncHttp.AsyncHttpTextResult
-                                   (url, timeout = System.TimeSpan.FromSeconds(20.0),
-                                    headers = headers)
-                               |> AsyncResult.mapError (fun err -> err.ToString())
-                               |> AsyncResult.teeError
-                                   (fun _ ->
-                                   feedbackAgent.Post
-                                       (Orn.Registry.Shared.OpenApiDownloadFailed
-                                           (openApiUrl)))
-            let! rawList =
-                text
-                |> Thoth.Json.Net.Decode.fromString (Thoth.Json.Net.Decode.array Thoth.Json.Net.Decode.string)
-            let openApiSet = rawList |> List.map OpenApiUrl |> Set.ofList
-            return openApiSet
+            try
+                printfn "Downloading service list for %s" url
+                let headers =
+                  [ FSharp.Data.HttpRequestHeaders.Accept FSharp.Data.HttpContentTypes.Json ]
+                let! text = SafeAsyncHttp.AsyncHttpTextResult
+                                       (url, timeout = System.TimeSpan.FromSeconds(20.0),
+                                        headers = headers)
+                                   |> AsyncResult.mapError (fun err -> err.ToString())
+                                   |> AsyncResult.teeError
+                                       (fun _ ->
+                                       feedbackAgent.Post
+                                           (Orn.Registry.Shared.ListDownloadFailed
+                                               (url)))
+                let! rawList =
+                    text
+                    |> Thoth.Json.Net.Decode.fromString (Thoth.Json.Net.Decode.array Thoth.Json.Net.Decode.string)
+                let openApiSet = rawList |> Array.map OpenApiUrl |> Set.ofArray
+                return openApiSet
+            with
+                | :? System.Net.WebException ->
+                    printfn "Timeout occured in OpenApi processing agent when processing: %s" url
+                    return! Error (sprintf "Timeout occured in OpenApi processing agent when processing: %s" url)
+                | ex ->
+                    printfn "Exception occured in OpenApi processing agent: %O" ex
+                    return! Error (sprintf "Exception occured in OpenApi processing agent: %O" ex)
         }
 
+    let createAndRunServiceListAgent openApiSet =
+        let agent = new Orn.Registry.ServiceListAgent.ServiceListAgent(feedbackAgent, openApiAgent) :> Orn.Registry.ServiceListAgent.IServiceListAgent
+        agent.Post(openApiSet)
+        Ok agent
+
     let rec agentFunction (feedbackAgent: Feedback.IFeedbackAgent) (openApiAgent: IOpenApiProcessingAgent)
-            (agent: Agent<ProcessingMessage>) =
+            (agent: Agent<ListProcessingMessage>) =
         async {
 
             let! message = agent.Receive()
             match message with
-            | IndexNewUrl(url, reindexInterval) ->
-                try
-                    let! result =
-                      asyncResult {
-                            if not (Map.containsKey url serviceListAgents) then
-                                let! openApiSet = retrieveOpenApiSet url
-                                let agent =
-                                    Orn.Registry.ServiceListAgent.ServiceListAgent(feedbackAgent, openApiAgent) :> Orn.Registry.ServiceListAgent.IServiceListAgent
-                                agent.Post(openApiList)
-                                serviceListAgents <- Map.add url (Ok agent) serviceListAgents
-                                ()
-                            else
-                                ()
-                      }
+            | AddNewList(url, reindexInterval) ->
+                    if not (Map.containsKey url serviceListAgents) then
+                        let! openApiSetResult = retrieveOpenApiSet url
+                        let serviceEntry =
+                            match openApiSetResult with
+                            | Ok openApiSet ->
+                                createAndRunServiceListAgent openApiSet
+                            | Error err ->
+                                Error err
+                        serviceListAgents <- Map.add url serviceEntry serviceListAgents
+                        ()
+                    else
+                        ()
+            | RemoveList url ->
+                let agent = Map.tryFind url serviceListAgents
+                match agent with
+                | Some (Ok listAgent) ->
+                    listAgent.Dispose()
+                    serviceListAgents <- Map.remove url serviceListAgents
+                | Some (Error _) ->
+                    serviceListAgents <- Map.remove url serviceListAgents
+                | None ->
+                    ()
+            | RefreshLists ->
+                let urlsAndResults =
+                    Map.toArray serviceListAgents
+                let! refreshedServiceLists =
+                    urlsAndResults
+                    |> Array.map
+                        (fun (url, previousResult) ->
+                            async {
+                                let! newResult = retrieveOpenApiSet url
+                                return
+                                    match previousResult, newResult with
+                                    | Ok agent, Ok currentList ->
+                                        agent.Post(currentList)
+                                        url, Ok agent
+                                    | Error _, Ok currentList ->
+                                        url, (createAndRunServiceListAgent currentList)
+                                    | Ok agent, Error _ ->
+                                        url, Ok agent
+                                    | Error _, Error err ->
+                                        url, Error err
+                            }
+                                 )
+                    |> Async.Parallel
+                serviceListAgents <- Map.ofArray refreshedServiceLists
 
-
-
-                    match result with
-                    | Ok(serviceInformation, tripleStore) ->
-                        printfn "Loading json-ld into triple store worked for service %s - memory use is: %.2f MB" url (getUsedMemoryInMb())
-                        servicesAgent.Post
-                            (AddService
-                                (openApiUrl,
-                                 { processingInfo with
-                                       Status =
-                                           Indexed
-                                               { TripleStore = tripleStore
-                                                 OpenApiServiceInformation = serviceInformation } }))
-                    | Error msg ->
-                        printfn "Loading json-ld into triple store FAILED for service %s" url
-                        servicesAgent.Post(AddService(openApiUrl, { processingInfo with Status = Failed msg }))
-                with
-
-                | :? System.Net.WebException ->
-                    printfn "Timeout occured in OpenApi processing agent when processing: %s" url
-                    servicesAgent.Post
-                        (AddService
-                            (openApiUrl,
-                             ({ Status = Failed "Timeout while trying to download swagger definition"
-                                OpenApiRetrievalInformation = None
-                                DereferencedOpenApi = None
-                                ReindexInterval = reindexInterval })))
-
-                | ex ->
-                    feedbackAgent.Post(JsonLdParsingError(OpenApiUrl url, ex.ToString()))
-                    printfn "Exception occured in OpenApi processing agent: %O" ex
-
-            | RemoveUrl url -> servicesAgent.Post(RemoveService url)
-
-            do! agentFunction feedbackAgent servicesAgent agent
+            do! agentFunction feedbackAgent openApiAgent agent
         }
 
-    let agent = Agent.Start(agentFunction feedbackAgent servicesAgent, cancelToken)
+    let agent = Agent.Start(agentFunction feedbackAgent openApiAgent, cancelToken)
 
-    interface IOpenApiProcessingAgent with
-        member this.Post(message: ProcessingMessage) = agent.Post(message)
+    interface IListRefreshAgent with
+        member this.Post(message: ListProcessingMessage) = agent.Post(message)
         member this.ReadonlyState =
             true //TODO: if there is a weird error that no services sho up then the reason could be that this is a closure which I hope it is not
