@@ -47,7 +47,7 @@ type ServiceListAgent(feedbackAgent: Feedback.IFeedbackAgent, processingAgent: O
             for service in addedServices do
                 processingAgent.Post
                     (OpenApiProcessing.IndexNewUrl
-                        (service, None, System.Double.PositiveInfinity * 1.0<FSharp.Data.UnitSystems.SI.UnitNames.second>))
+                        (service, None, System.Double.PositiveInfinity * 1.0<FSharp.Data.UnitSystems.SI.UnitNames.second>)) // services from a list are not updated (the generated list can use dummy querystrings if it wants to force an update)
 
             for service in removedServices do
                 processingAgent.Post(OpenApiProcessing.RemoveUrl(service))
