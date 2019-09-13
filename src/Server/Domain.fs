@@ -8,7 +8,9 @@ open Orn.Registry.AgentSetup
 open Orn.Registry.JsonLdParsing
 open Orn.Registry.Shared
 
+// TODO: move these two into agents that make sure that this bookkkeping is threadsafe
 let mutable ExternalServices = Set.empty<string>
+let mutable ExternalServiceLists = Set.empty<string>
 
 let getCurrentServices (logger: ILogger) email: Async<Shared.ActiveServices> =
     async {
@@ -78,6 +80,7 @@ let getCurrentServices (logger: ILogger) email: Async<Shared.ActiveServices> =
                  Shared.OrnServices = clientFormatOrnServices
                  Shared.ExternalOrnServices = externalServiceWithOptionalOrnService
                  Shared.ExternalServices = Set.toList externalServices
+                 Shared.ExternalServiceLists = Set.toList ExternalServiceLists
                  Shared.Messages = feedbackAgent.ReadonlyState |> Seq.toList }
     }
 

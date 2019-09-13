@@ -38,6 +38,10 @@ let private k8sUpdateAgentImpl: Kubernetes.UpdateAgent =
     Kubernetes.UpdateAgent(feedbackAgent, openApiProcessingAgent, k8sApiUrl, cancelTokenSource.Token)
 let k8sUpdateAgent = k8sUpdateAgentImpl :> Kubernetes.IKubernetesAgent
 
+let private listManagementAgentImpl = Orn.Registry.ListManagementAgent.ListManagementAgent(feedbackAgent, openApiServicesAgent, cancelTokenSource.Token)
+
+let listManagementAgent = listManagementAgentImpl :> Orn.Registry.ListManagementAgent.IListManagementAgent
+
 let createRefreshAgent (action: Unit -> Unit) (timeout: float<second>): MailboxProcessor<Unit> =
     Agent.Start
         ((fun agent ->
@@ -50,6 +54,8 @@ let createRefreshAgent (action: Unit -> Unit) (timeout: float<second>): MailboxP
          sleepRefreshLoop()), cancelTokenSource.Token)
 
 let private kubernetesServicesRefreshAgent = createRefreshAgent k8sUpdateAgent.Post 2.0<second>
+
+let private listsRefreshAgent = createRefreshAgent (fun _ -> listManagementAgent.Post Orn.Registry.ServiceListAgent.RefreshLists ) 360.0<second>
 
 let private reindexFailedServicesRefreshAgent =
     createRefreshAgent (fun _ ->

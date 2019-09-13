@@ -46,6 +46,38 @@ let getCurrentServicesHandler email: HttpHandler =
             return! Successful.ok (json services) next ctx
         }
 
+let addExternalServiceListHandler email: HttpHandler =
+    fun next (ctx: Http.HttpContext) ->
+        task {
+            let logger = ctx.GetLogger()
+            logger.LogInformation("Adding external service list")
+            let hasServiceList, list = ctx.Request.Query.TryGetValue "list"
+            if not hasServiceList then
+                return! RequestErrors.BAD_REQUEST (text "Could not find query parameter 'list'") next ctx
+            else
+                logger.LogInformation("Adding service list: ", list)
+                do listManagementAgent.Post
+                    (Orn.Registry.ListManagementAgent.AddNewList(list.[0]))
+                ExternalServiceLists <- Set.add service.[0] ExternalServiceLists
+                return! Successful.NO_CONTENT next ctx
+        }
+
+
+let removeExternalServiceListHandler email: HttpHandler =
+    fun next (ctx: Http.HttpContext) ->
+        task {
+            let logger = ctx.GetLogger()
+            logger.LogInformation("Removing external service list")
+            let hasServiceList, list = ctx.Request.Query.TryGetValue "list"
+            if not hasServiceList then
+                return! RequestErrors.BAD_REQUEST (text "Could not find query parameter 'list'") next ctx
+            else
+                logger.LogInformation("Removing service list: ", list)
+                do listManagementAgent.Post(Orn.Registry.ListManagementAgent.RemoveList(service.[0]))
+                ExternalServiceLists <- Set.remove service.[0] ExternalServiceLists
+                return! Successful.NO_CONTENT next ctx
+        }
+
 let addExternalServiceHandler email: HttpHandler =
     fun next (ctx: Http.HttpContext) ->
         task {
@@ -67,7 +99,7 @@ let removeExternalServiceHandler email: HttpHandler =
     fun next (ctx: Http.HttpContext) ->
         task {
             let logger = ctx.GetLogger()
-            logger.LogInformation("Adding external service")
+            logger.LogInformation("Removing external service")
             let hasService, service = ctx.Request.Query.TryGetValue "service"
             if not hasService then
                 return! RequestErrors.BAD_REQUEST (text "Could not find query parameter 'service'") next ctx

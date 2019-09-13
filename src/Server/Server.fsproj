@@ -17,7 +17,7 @@
     <Compile Include="OpenApiServicesAgent.fs" />
     <Compile Include="OpenApiProcessingAgent.fs" />
     <Compile Include="ServiceListAgent.fs" />
-    <Compile Include="ListRefreshAgent.fs" />
+    <Compile Include="ListManagementAgent.fs" />
     <Compile Include="Kubernetes.fs" />
     <Compile Include="AgentSetup.fs" />
     <Compile Include="Auth.fs" />

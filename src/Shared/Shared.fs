@@ -25,28 +25,6 @@ module Constants =
   [<Literal>]
   let OpenApiLabelStaticServices = "openrisknet-static-services"
   let OpenApiLabelDynamicServices = "openrisknet-dynamic-services"
-  let KubernetesNamespace = "openrisknet"
-// Application
-// type ApplicationStatus =
-//   | Offline
-//   | Running
-
-// type ApplicationType =
-//   | Deployable of status:  ApplicationStatus * helmChartUri : Url
-//   | NonDeyloyable of publicServiceUri : Url
-
-// type OrnApplication =
-//   { Name : string
-//     Logo : Url
-//     Description : string
-//     ApplicationType : ApplicationType
-//     Id : Url
-//     }
-
-// type DynamicServiceInformationSource =
-//   { DynamicServiceSource : string
-//     LastPoll : DateTime
-//   }
 
 type Feedback =
   | OpenApiDownloadFailed of OpenApiUrl
@@ -86,6 +64,7 @@ type ActiveServices =
     OrnServices : OrnService list
     ExternalOrnServices : ExternalService list
     ExternalServices : string list
+    ExternalServiceLists : string list
     Messages : TimestampedFeedback list }
 
 // Search

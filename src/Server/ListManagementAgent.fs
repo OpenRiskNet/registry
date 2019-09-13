@@ -1,4 +1,4 @@
-module Orn.Registry.ListRefreshAgent
+module Orn.Registry.ListManagementAgent
 
 open Orn.Registry.BasicTypes
 open DouglasConnect.Http
@@ -8,13 +8,13 @@ open Orn.Registry.OpenApiProcessing
 open System.Threading
 
 type ListProcessingMessage =
-    | AddNewList of string * float<FSharp.Data.UnitSystems.SI.UnitNames.second>
+    | AddNewList of string
     | RemoveList of string
     | RefreshLists
 
-type IListRefreshAgent = Orn.Registry.IAgent<bool, ListProcessingMessage> // The state should be unit but there is a weird compiler error if I return unit
+type IListManagementAgent = Orn.Registry.IAgent<bool, ListProcessingMessage> // The state should be unit but there is a weird compiler error if I return unit
 
-type OpenApiProcessingAgent(feedbackAgent: Feedback.IFeedbackAgent, openApiAgent: IOpenApiProcessingAgent, cancelToken: CancellationToken) =
+type ListManagementAgent(feedbackAgent: Feedback.IFeedbackAgent, openApiAgent: IOpenApiProcessingAgent, cancelToken: CancellationToken) =
     let mutable serviceListAgents = Map<string, Result<Orn.Registry.ServiceListAgent.IServiceListAgent, string>> []
 
     let retrieveOpenApiSet url =
@@ -57,7 +57,7 @@ type OpenApiProcessingAgent(feedbackAgent: Feedback.IFeedbackAgent, openApiAgent
 
             let! message = agent.Receive()
             match message with
-            | AddNewList(url, reindexInterval) ->
+            | AddNewList(url) ->
                     if not (Map.containsKey url serviceListAgents) then
                         let! openApiSetResult = retrieveOpenApiSet url
                         let serviceEntry =
@@ -110,7 +110,7 @@ type OpenApiProcessingAgent(feedbackAgent: Feedback.IFeedbackAgent, openApiAgent
 
     let agent = Agent.Start(agentFunction feedbackAgent openApiAgent, cancelToken)
 
-    interface IListRefreshAgent with
+    interface IListManagementAgent with
         member this.Post(message: ListProcessingMessage) = agent.Post(message)
         member this.ReadonlyState =
             true //TODO: if there is a weird error that no services sho up then the reason could be that this is a closure which I hope it is not
