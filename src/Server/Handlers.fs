@@ -58,7 +58,7 @@ let addExternalServiceListHandler email: HttpHandler =
                 logger.LogInformation("Adding service list: ", list)
                 do listManagementAgent.Post
                     (Orn.Registry.ListManagementAgent.AddNewList(list.[0]))
-                ExternalServiceLists <- Set.add service.[0] ExternalServiceLists
+                ExternalServiceLists <- Set.add list.[0] ExternalServiceLists
                 return! Successful.NO_CONTENT next ctx
         }
 
@@ -73,8 +73,8 @@ let removeExternalServiceListHandler email: HttpHandler =
                 return! RequestErrors.BAD_REQUEST (text "Could not find query parameter 'list'") next ctx
             else
                 logger.LogInformation("Removing service list: ", list)
-                do listManagementAgent.Post(Orn.Registry.ListManagementAgent.RemoveList(service.[0]))
-                ExternalServiceLists <- Set.remove service.[0] ExternalServiceLists
+                do listManagementAgent.Post(Orn.Registry.ListManagementAgent.RemoveList(list.[0].ToString()))
+                ExternalServiceLists <- Set.remove list.[0] ExternalServiceLists
                 return! Successful.NO_CONTENT next ctx
         }
 
