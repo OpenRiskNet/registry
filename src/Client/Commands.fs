@@ -56,4 +56,16 @@ let removeExternalService token service =
           Fetch.requestHeaders [ authHeader token ] ] (Ok >> AddExternalServiceRequestCompleted)
         (Error >> AddExternalServiceRequestCompleted)
 
+let addExternalServiceList token list =
+    Cmd.ofPromise (fetch (buildUrl "/api/external-service-lists" [ ("list", [ list ]) ]))
+        [ RequestProperties.Method HttpMethod.POST
+          Fetch.requestHeaders [ authHeader token ] ] (Ok >> AddExternalServiceRequestCompleted)
+        (Error >> AddExternalServiceRequestCompleted)
+
+let removeExternalServiceList token list =
+    Cmd.ofPromise (fetch (buildUrl "/api/external-service-lists" [ ("list", [ list ]) ]))
+        [ RequestProperties.Method HttpMethod.DELETE
+          Fetch.requestHeaders [ authHeader token ] ] (Ok >> AddExternalServiceRequestCompleted)
+        (Error >> AddExternalServiceRequestCompleted)
+
 let sleep = Cmd.ofPromise (fun _ -> Fable.PowerPack.Promise.sleep 20000) () (fun _ -> Awake) (fun _ -> Awake)

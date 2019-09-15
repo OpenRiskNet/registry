@@ -85,7 +85,7 @@ let appView (model : AppModel) (dispatch : AppMsg -> unit) =
           match model.Services with
           | ServicesLoading -> [ p [] [str "Loading ..."] ]
           | ServicesError err -> [ p [] [str ("Error loading services: " + err)] ]
-          | Services {ExternalServices = externalServices; Messages = messages } ->
+          | Services {ExternalServices = externalServices; ExternalServiceLists = externalServiceLists; Messages = messages } ->
               let externalServiceFragments =
                   externalServices
                   |> List.map (fun service ->
@@ -95,6 +95,15 @@ let appView (model : AppModel) (dispatch : AppMsg -> unit) =
                               Button.a [ Button.Option.OnClick (fun _ -> dispatch <| RemoveExternalService service ) ] [ Fa.i [ Fa.Solid.Trash ] [] ]
                             ]
                   )
+              let externalServiceListFragments =
+                  externalServiceLists
+                  |> List.map (fun service ->
+                        div [ ClassName "row resource-listing__resource" ]
+                            [ div [ ClassName "resource__title" ]
+                                 [ str service ]
+                              Button.a [ Button.Option.OnClick (fun _ -> dispatch <| RemoveExternalServiceList service ) ] [ Fa.i [ Fa.Solid.Trash ] [] ]
+                            ]
+                  )
               let feedbackMessages =
                   messages
                   |> List.map (fun feedbackMessage ->
@@ -102,6 +111,7 @@ let appView (model : AppModel) (dispatch : AppMsg -> unit) =
                             [( match feedbackMessage.Feedback with
                                | OpenApiDownloadFailed (OpenApiUrl url) -> str (sprintf "Downloading OpenAPI failed from URL: %s" url)
                                | OpenApiParsingFailed (OpenApiUrl url, openapiMessage) -> str (sprintf "Parsing OpenAPI failed (from URL: %s) with message: %s" url openapiMessage)
+                               | ListDownloadFailed (url) -> str (sprintf "Downloading or processing of this list failed: %s" url)
                                | JsonLdContextMissing (OpenApiUrl url) -> str (sprintf "Json-LD context missing in OpenAPI definition at URL: %s" url)
                                | JsonLdParsingError (OpenApiUrl url, jsonldMessage) -> str (sprintf "Json-LD parsing error (from URL: %s) with message: %s" url jsonldMessage)
                             )]
@@ -128,6 +138,28 @@ let appView (model : AppModel) (dispatch : AppMsg -> unit) =
               ]
               @
               externalServiceFragments
+              @
+              [ h3  [] [ str "Add a new external dynamic list of services" ]
+                Fulma.Text.p [ GenericOption.Modifiers [ Fulma.Modifier.TextSize(Screen.All, TextSize.Is7) ] ] [ str "Please beware that external lists of services are not persisted at the moment (i.e. you have to add them again if the registry is restarted)"]
+
+                Fulma.Columns.columns []
+                  [
+                    Column.column [ Column.Option.Width(Screen.All, Column.IsFourFifths) ]
+                     [ Fulma.Input.text
+                        [ Input.Option.ValueOrDefault model.ExternalServiceListTextFieldContent
+                          Input.Option.OnChange (fun event -> dispatch <| ExternalServiceListTextFieldChanged event.Value )
+                          Input.Placeholder "Absolute URL of a service list (json array of url strings of OpenRiskNet annotated OpenAPI definitions)"
+                         ]
+                     ]
+                    Column.column []
+                     [ Fulma.Button.button [ Button.OnClick (fun _ -> dispatch AddExternalServiceList) ] [ str "Add service list"]
+                     ]
+
+                  ]
+                h3  [] [ str "Currently registered external service lists" ]
+              ]
+              @
+              externalServiceListFragments
               @
               [
                 h3  [] [ str "Recent registry messages: " ]
@@ -203,6 +235,7 @@ let appView (model : AppModel) (dispatch : AppMsg -> unit) =
                             [( match feedbackMessage.Feedback with
                                | OpenApiDownloadFailed (OpenApiUrl url) -> str (sprintf "Downloading OpenAPI failed from URL: %s" url)
                                | OpenApiParsingFailed (OpenApiUrl url, openapiMessage) -> str (sprintf "Parsing OpenAPI failed (from URL: %s) with message: %s" url openapiMessage)
+                               | ListDownloadFailed (url) -> str (sprintf "Downloading or processing of this list failed: %s" url)
                                | JsonLdContextMissing (OpenApiUrl url) -> str (sprintf "Json-LD context missing in OpenAPI definition at URL: %s" url)
                                | JsonLdParsingError (OpenApiUrl url, jsonldMessage) -> str (sprintf "Json-LD parsing error (from URL: %s) with message: %s" url jsonldMessage)
                             )]

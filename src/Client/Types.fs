@@ -60,6 +60,7 @@ type AppModel =
       SparqlResults: SparqlResultsForServices option
       ActiveTab: ActiveTab
       ExternalServiceTextFieldContent: string
+      ExternalServiceListTextFieldContent: string
       SelectedSparqlService: string
       LoginInfo: LoginInfo }
 
@@ -80,6 +81,11 @@ type AppMsg =
     | ExternalServiceTextFieldChanged of string
     | AddExternalServiceRequestCompleted of Result<Response, exn>
     | RemoveExternalServiceRequestCompleted of Result<Response, exn>
+    | AddExternalServiceList
+    | RemoveExternalServiceList of string
+    | ExternalServiceListTextFieldChanged of string
+    | AddExternalServiceListRequestCompleted of Result<Response, exn>
+    | RemoveExternalServiceListRequestCompleted of Result<Response, exn>
     | SparqlSerivceSelected of string
 
 type Msg =

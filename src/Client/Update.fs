@@ -46,6 +46,7 @@ let testServices =
           OrnServices = ornServicesTestValues
           ExternalOrnServices = []
           ExternalServices = []
+          ExternalServiceLists = []
           Messages = [] }
 
 
@@ -106,6 +107,19 @@ let update (msg: Msg) (model: Model): Model * Cmd<Msg> =
                     | RemoveExternalServiceRequestCompleted(Error err) ->
                         Fable.Import.JS.console.log ("Error:", [ err ])
                         appModel, Cmd.none
+                    | ExternalServiceListTextFieldChanged newText ->
+                        { appModel with ExternalServiceListTextFieldContent = newText }, Cmd.none
+                    | AddExternalServiceList ->
+                        appModel, addExternalServiceList appModel.LoginInfo.Token appModel.ExternalServiceListTextFieldContent
+                    | RemoveExternalServiceList list -> appModel, removeExternalServiceList appModel.LoginInfo.Token list
+                    | AddExternalServiceListRequestCompleted(Ok _) -> appModel, Cmd.none
+                    | AddExternalServiceListRequestCompleted(Error err) ->
+                        Fable.Import.JS.console.log ("Error:", [ err ])
+                        appModel, Cmd.none
+                    | RemoveExternalServiceListRequestCompleted(Ok _) -> appModel, Cmd.none
+                    | RemoveExternalServiceListRequestCompleted(Error err) ->
+                        Fable.Import.JS.console.log ("Error:", [ err ])
+                        appModel, Cmd.none
                     | SparqlSerivceSelected newSelection ->
                         { appModel with SelectedSparqlService = newSelection }, Cmd.none
                 LoggedIn newAppModel, Cmd.map AppMessage cmd
@@ -130,6 +144,7 @@ let update (msg: Msg) (model: Model): Model * Cmd<Msg> =
                   SparqlResults = initialResults
                   ActiveTab = ServicesTab
                   ExternalServiceTextFieldContent = ""
+                  ExternalServiceListTextFieldContent = ""
                   SelectedSparqlService = ""
                   LoginInfo = loginInfo }
 

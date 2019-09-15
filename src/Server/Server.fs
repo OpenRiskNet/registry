@@ -27,6 +27,8 @@ let webApp =
           route "/api/services" >=> GET >=> requireUserHandler getCurrentServicesHandler
           route "/api/external-services" >=> POST >=> requireUserHandler addExternalServiceHandler
           route "/api/external-services" >=> DELETE >=> requireUserHandler removeExternalServiceHandler
+          route "/api/external-service-lists" >=> POST >=> requireUserHandler addExternalServiceListHandler
+          route "/api/external-service-lists" >=> DELETE >=> requireUserHandler removeExternalServiceListHandler
           // route "/applications"
           route "/swaggerui" >=> GET >=> swaggerUiHandler
           route "/openapi-raw" >=> GET >=> rawOpenApiHandler
