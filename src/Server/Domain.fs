@@ -10,7 +10,6 @@ open Orn.Registry.Shared
 
 // TODO: move these two into agents that make sure that this bookkkeping is threadsafe
 let mutable ExternalServices = Set.empty<string>
-let mutable ExternalServiceLists = Set.empty<string>
 
 let getCurrentServices (isDevMode : bool) (logger: ILogger) email: Async<Shared.ActiveServices> =
     async {
@@ -40,6 +39,39 @@ let getCurrentServices (isDevMode : bool) (logger: ILogger) email: Async<Shared.
                  | Some { Status = (OpenApiServicesAgent.Indexed ornInfo) } ->
                      Some { OpenApiServiceInformation = ornInfo.OpenApiServiceInformation }))
             |> Seq.toList
+
+
+        let externalServiceLists =
+            listManagementAgent.ReadonlyState
+            |> Map.toList
+            |> List.map
+                ((fun (listUrl, listResult) ->
+                    let serviceList =
+                        match listResult with
+                        | Ok set ->
+                            set
+                            |> Set.toList
+                            |> List.choose (fun service ->
+                                let maybeProcessingInfo = ornServices |> Map.tryFind service
+                                match maybeProcessingInfo with
+                                | None ->
+                                    None
+                                | Some { Status = OpenApiServicesAgent.InProgress } ->
+                                    None
+                                | Some { Status = (OpenApiServicesAgent.Failed _) } ->
+                                    None
+                                | Some { Status = (OpenApiServicesAgent.Reindexing ornInfo) }
+                                | Some { Status = (OpenApiServicesAgent.Indexed ornInfo) } ->
+                                    Some ornInfo.OpenApiServiceInformation
+                            )
+                        | Error _ ->
+                            []
+                    { ListUrl = listUrl
+                      Services = serviceList }
+                ))
+
+
+
 
         let k8sServiceWithOptionalOrnService =
             k8sServices
@@ -84,7 +116,7 @@ let getCurrentServices (isDevMode : bool) (logger: ILogger) email: Async<Shared.
                  Shared.OrnServices = clientFormatOrnServices
                  Shared.ExternalOrnServices = externalServiceWithOptionalOrnService
                  Shared.ExternalServices = Set.toList externalServices
-                 Shared.ExternalServiceLists = Set.toList ExternalServiceLists
+                 Shared.ExternalServiceLists = externalServiceLists
                  Shared.Messages = feedbackAgent.ReadonlyState |> Seq.toList }
     }
 

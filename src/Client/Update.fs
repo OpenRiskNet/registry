@@ -8,24 +8,7 @@ open Fable.Import
 open Orn.Registry.Client.Types
 open Orn.Registry.Client.Commands
 // TODO: Try to make this query work
-let initialQuery = """PREFIX orn: <http://openrisknet.org/schema#>
-# A very simple query the title of the Api:
-SELECT ?title
-WHERE {
-?tool orn:info ?info.
-?info orn:title ?title
-}
-# Another example query to get all tripples that could be resolved using the JsonLd context
-# SELECT * {?s ?p ?o}
-"""
 
-
-
-let moreInterestingQuery = """PREFIX orn: <http://openrisknet.org/schema#>
-SELECT * { ?s1 <orn:paths> ?o1 .
-?o1 (<orn:blank>|!<orn:blank>)* ?o2 .
-?o2 <http://semanticscience.org/resource/CHEMINF_000018> ?o}
-"""
 
 
 let ornServicesTestValues =
@@ -142,7 +125,7 @@ let update (msg: Msg) (model: Model): Model * Cmd<Msg> =
                       { Text = ""
                         OntologyTerm = None
                         TermSuggestions = [] }
-                  SparqlQuery = initialQuery
+                  SparqlQuery = List.head exampleQueries |> snd
                   SparqlResults = initialResults
                   ActiveTab = ServicesTab
                   ExternalServiceTextFieldContent = ""

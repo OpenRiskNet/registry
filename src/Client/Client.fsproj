@@ -8,6 +8,7 @@
         <Compile Include="Types.fs" />
         <Compile Include="Commands.fs" />
         <Compile Include="Update.fs" />
+        <Compile Include="ReactMarkdown.fs" />
         <Compile Include="View.fs" />
         <Compile Include="Client.fs" />
     </ItemGroup>

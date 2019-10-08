@@ -12,7 +12,9 @@ type ListProcessingMessage =
     | RemoveList of string
     | RefreshLists
 
-type IListManagementAgent = Orn.Registry.IAgent<bool, ListProcessingMessage> // The state should be unit but there is a weird compiler error if I return unit
+type ServiceListMapToIndividualServices = Map<string, Result<Set<OpenApiUrl>, string>>
+
+type IListManagementAgent = Orn.Registry.IAgent<ServiceListMapToIndividualServices, ListProcessingMessage>
 
 type ListManagementAgent(feedbackAgent: Feedback.IFeedbackAgent, openApiAgent: IOpenApiProcessingAgent, cancelToken: CancellationToken) =
     let mutable serviceListAgents = Map<string, Result<Orn.Registry.ServiceListAgent.IServiceListAgent, string>> []
@@ -113,4 +115,5 @@ type ListManagementAgent(feedbackAgent: Feedback.IFeedbackAgent, openApiAgent: I
     interface IListManagementAgent with
         member this.Post(message: ListProcessingMessage) = agent.Post(message)
         member this.ReadonlyState =
-            true //TODO: if there is a weird error that no services sho up then the reason could be that this is a closure which I hope it is not
+            let currentServicesLists = serviceListAgents
+            currentServicesLists |> Map.map (fun key value -> value |> Result.map (fun listAgent -> listAgent.ReadonlyState))

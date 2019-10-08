@@ -60,7 +60,6 @@ let addExternalServiceListHandler email: HttpHandler =
                 logger.LogInformation("Adding service list: ", list)
                 do listManagementAgent.Post
                     (Orn.Registry.ListManagementAgent.AddNewList(list.[0]))
-                ExternalServiceLists <- Set.add list.[0] ExternalServiceLists
                 return! Successful.NO_CONTENT next ctx
         }
 
@@ -76,7 +75,6 @@ let removeExternalServiceListHandler email: HttpHandler =
             else
                 logger.LogInformation("Removing service list: ", list)
                 do listManagementAgent.Post(Orn.Registry.ListManagementAgent.RemoveList(list.[0].ToString()))
-                ExternalServiceLists <- Set.remove list.[0] ExternalServiceLists
                 return! Successful.NO_CONTENT next ctx
         }
 

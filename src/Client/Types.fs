@@ -91,3 +91,31 @@ type AppMsg =
 type Msg =
     | AppMessage of AppMsg
     | KeycloakInit of Result<LoginInfo, obj>
+
+let exampleQueries =
+    [ "Select title inside top level info object"
+      , """PREFIX orn: <http://openrisknet.org/schema#>
+SELECT ?title
+WHERE {
+?tool orn:info ?info.
+?info orn:title ?title
+}
+"""
+      "Select all triples"
+      , """PREFIX orn: <http://openrisknet.org/schema#>
+SELECT * {?s ?p ?o}"""
+      "Select the first 100 triples that use a predicate not in the default openrisknet.org namespace"
+      , """PREFIX orn: <http://openrisknet.org/schema#>
+SELECT ?s ?p ?o
+WHERE {
+    ?s ?p ?o .
+  FILTER (!(strstarts(str(?p), 'http://openrisknet.org')))
+}
+LIMIT 100"""
+      "Select all endpoints that at some point below then use the CHEMINF_000018 term (smiles)"
+      , """PREFIX orn: <http://openrisknet.org/schema#>
+SELECT * { ?s1 <orn:paths> ?o1 .
+?o1 (<orn:blank>|!<orn:blank>)* ?o2 .
+?o2 <http://semanticscience.org/resource/CHEMINF_000018> ?o}"""
+
+    ]

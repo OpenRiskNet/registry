@@ -59,12 +59,16 @@ type OrnService =
 type ExternalService =
   { OpenApiServiceInformation : OpenApiServiceInformation }
 
+type ExternalServiceList =
+  { ListUrl : string
+    Services : OpenApiServiceInformation list }
+
 type ActiveServices =
   { PlainK8sServices : K8sService list
     OrnServices : OrnService list
     ExternalOrnServices : ExternalService list
     ExternalServices : string list
-    ExternalServiceLists : string list
+    ExternalServiceLists : ExternalServiceList list
     Messages : TimestampedFeedback list }
 
 // Search

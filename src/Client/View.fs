@@ -2,6 +2,7 @@ module Orn.Registry.Client.View
 
 open Fable.Helpers.React
 open Fable.Helpers.React.Props
+open Orn.Registry.Client.ReactMarkdown
 
 open Fulma
 
@@ -104,8 +105,8 @@ let appView (model : AppModel) (dispatch : AppMsg -> unit) =
                   |> List.map (fun service ->
                         div [ ClassName "row resource-listing__resource" ]
                             [ div [ ClassName "resource__title" ]
-                                 [ str service ]
-                              Button.a [ Button.Option.OnClick (fun _ -> dispatch <| RemoveExternalServiceList service ) ] [ trashIcon ]
+                                 [ str service.ListUrl ]
+                              Button.a [ Button.Option.OnClick (fun _ -> dispatch <| RemoveExternalServiceList service.ListUrl ) ] [ trashIcon ]
                             ]
                   )
               let feedbackMessages =
@@ -173,7 +174,7 @@ let appView (model : AppModel) (dispatch : AppMsg -> unit) =
           match model.Services with
           | ServicesLoading -> [ p [] [str "Loading ..."] ]
           | ServicesError err -> [ p [] [str ("Error loading services: " + err)] ]
-          | Services {PlainK8sServices = k8sServices; OrnServices = ornServices; ExternalOrnServices = externalServices; Messages = messages} ->
+          | Services {PlainK8sServices = k8sServices; OrnServices = ornServices; ExternalOrnServices = externalServices; ExternalServiceLists = externalServiceLists; Messages = messages} ->
               // TODO: render external services
               let plainK8sFragments =
                   k8sServices
@@ -184,53 +185,49 @@ let appView (model : AppModel) (dispatch : AppMsg -> unit) =
                                      [ str app.Name ]
                                 ]
                             ])
+              let renderAppFragment (app : OpenApiServiceInformation) =
+                  let swaggerUrl = app.OpenApiUrl.Unwrap()
+                  let swaggerUiLink = sprintf "/swaggerui?service=%s" (swaggerUrl |> Fable.Import.JS.encodeURIComponent)
+                  let rawOpenApiLink = sprintf "/openapi-raw?service=%s" (swaggerUrl |> Fable.Import.JS.encodeURIComponent)
+                  let dereferencedOpenApiLink = sprintf "/openapi-dereferenced?service=%s" (swaggerUrl |> Fable.Import.JS.encodeURIComponent)
+                  div [ ClassName "col-md-6" ]
+                      [ div [ ClassName "services-listing__service"; Style [OverflowX "scroll"] ]
+                          [ div [ ClassName "service__name" ]
+                               [ str app.Name ]
+                            div [ ClassName "service__info service__info-item"]
+                              [ div [ ClassName "service__info-label"] [ str "Indexed at "]
+                                div [ ClassName "service__info-value"] [ str (app.RetrievedAt.ToString("yyyy-MMM-dd HH:mm:ss")) ]
+                              ]
+                            div [ ClassName "service__description"] [ reactMarkdown [ Source app.Description ] ]
+                            br []
+                            div [ ClassName "service__info" ]
+                              ( app.Endpoints
+                                |> List.map (fun endpoint -> div [ ClassName "service__info-item" ] [ str endpoint ]) )
+                            div [ ClassName "service__more-links"]
+                              [ a [ Href (rawOpenApiLink); Target "_blank" ] [ str "View raw OpenApi →" ]
+                                br []
+                                a [ Href (dereferencedOpenApiLink); Target "_blank" ] [ str "View dereferenced OpenApi →" ]
+                                br []
+                                a [ Href (swaggerUiLink); Target "_blank" ] [ str "View SwaggerUI →" ]
+                              ]
+                          ]
+                      ]
               let ornServiceFragments =
                   ornServices
-                  |> List.map (fun app ->
-                        let swaggerUrl = app.OpenApiServiceInformation.OpenApiUrl.Unwrap()
-                        let swaggerUiLink = sprintf "/swaggerui?service=%s" (swaggerUrl |> Fable.Import.JS.encodeURIComponent)
-                        let rawOpenApiLink = sprintf "/openapi-raw?service=%s" (swaggerUrl |> Fable.Import.JS.encodeURIComponent)
-                        let dereferencedOpenApiLink = sprintf "/openapi-dereferenced?service=%s" (swaggerUrl |> Fable.Import.JS.encodeURIComponent)
-                        div [ ClassName "col-md-6" ]
-                            [ div [ ClassName "services-listing__service" ]
-                                [ div [ ClassName "service__name" ]
-                                     [ str app.OpenApiServiceInformation.Name ]
-                                  div [ ClassName "service__info service__info-item"]
-                                    [ div [ ClassName "service__info-label"] [ str "Indexed at "]
-                                      div [ ClassName "service__info-value"] [ str (app.OpenApiServiceInformation.RetrievedAt.ToString("yyyy-MMM-dd HH:mm:ss")) ]
-                                    ]
-                                  div [ ClassName "service__description"] [ str app.OpenApiServiceInformation.Description ]
-                                  br []
-                                  div [ ClassName "service__info" ]
-                                    ( app.OpenApiServiceInformation.Endpoints
-                                      |> List.map (fun endpoint -> div [ ClassName "service__info-item" ] [ str endpoint ]) )
-                                  div [ ClassName "service__more-links"]
-                                    [ a [ Href (rawOpenApiLink); Target "_blank" ] [ str "View raw OpenApi →" ]
-                                      br []
-                                      a [ Href (dereferencedOpenApiLink); Target "_blank" ] [ str "View dereferenced OpenApi →" ]
-                                      br []
-                                      a [ Href (swaggerUiLink); Target "_blank" ] [ str "View SwaggerUI →" ]
-                                    ]
-                                ]
-                            ]
-                  )
+                  |> List.map (fun app -> renderAppFragment app.OpenApiServiceInformation)
               let externalServiceFragments =
                   externalServices
-                  |> List.map (fun app ->
-                        let swaggerUrl = app.OpenApiServiceInformation.OpenApiUrl.Unwrap()
-                        let swaggerUiLink = sprintf "/openapi?service=%s" (swaggerUrl |> Fable.Import.JS.encodeURIComponent)
-                        div [ ClassName "col-md-6" ]
-                            [ div [ ClassName "services-listing__service" ]
-                                [ div [ ClassName "service__name" ]
-                                     [ str app.OpenApiServiceInformation.Name ]
-                                  div [ ClassName "service__description"] [ str app.OpenApiServiceInformation.Description ]
-                                  br []
-                                  div [ ClassName "service__info" ]
-                                    ( app.OpenApiServiceInformation.Endpoints
-                                      |> List.map (fun endpoint -> div [ ClassName "service__info-item" ] [ str endpoint ]) )
-                                  div [ ClassName "service__more-links"] [ a [ Href (swaggerUiLink); Target "_blank" ] [ str "View OpenApi →" ]]
-                                ]
-                            ]
+                  |> List.map (fun app -> renderAppFragment app.OpenApiServiceInformation)
+              let externalServiceListFragments =
+                  externalServiceLists
+                  |> List.map (fun list ->
+                        let services =
+                          list.Services
+                          |> List.map renderAppFragment
+                        div []
+                          [ h4 [] [ str list.ListUrl ]
+                            div [ ClassName "row services-listing" ] services
+                          ]
                   )
               let feedbackMessages =
                   messages
@@ -249,6 +246,8 @@ let appView (model : AppModel) (dispatch : AppMsg -> unit) =
                 div [ ClassName "row services-listing" ] ornServiceFragments
                 h3  [] [ str "External services with OpenRiskNet annotation" ]
                 div [ ClassName "row services-listing" ] externalServiceFragments
+                h3  [] [ str "External service lists" ]
+                div [] externalServiceListFragments
                 h3  [] [ str "Kubernetes services (debug view)" ]
                 div [] plainK8sFragments
                 h3  [] [ str "Recent registry messages: " ]
