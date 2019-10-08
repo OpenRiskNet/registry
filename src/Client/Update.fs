@@ -107,6 +107,11 @@ let update (msg: Msg) (model: Model): Model * Cmd<Msg> =
                         appModel, Cmd.none
                     | SparqlSerivceSelected newSelection ->
                         { appModel with SelectedSparqlService = newSelection }, Cmd.none
+                    | SparqlExampleQuerySelected newKey ->
+                        { appModel with
+                            SelectedExampleSparqlQuery = newKey
+                            SparqlQuery = exampleQueries |> List.find (fun (key, value) -> key = newKey) |> snd
+                            SparqlResults = None }, Cmd.none
                 LoggedIn newAppModel, Cmd.map AppMessage cmd
         | KeycloakInit(Ok loginInfo) ->
             let localDebugMode = false
@@ -131,7 +136,8 @@ let update (msg: Msg) (model: Model): Model * Cmd<Msg> =
                   ExternalServiceTextFieldContent = ""
                   ExternalServiceListTextFieldContent = ""
                   SelectedSparqlService = ""
-                  LoginInfo = loginInfo }
+                  LoginInfo = loginInfo
+                  SelectedExampleSparqlQuery = exampleQueries |> List.head |> fst }
 
             LoggedIn newappModel, Cmd.map AppMessage initialCommand
         | KeycloakInit(Error err) ->

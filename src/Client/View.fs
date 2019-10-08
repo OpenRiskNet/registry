@@ -15,6 +15,22 @@ open Orn.Registry.Client.Types
 let trashIcon =
   i [ ClassName "fa fa-trash" ] []
 
+let exampleQueries (selectedExampleQuery : string) dispatch =
+  [ Fulma.Columns.columns []
+      [ Fulma.Column.column [ Column.Option.Width(Screen.All, Column.IsOneFifth) ] [ label [] [ str "Load example query:" ] ]
+        Fulma.Column.column []
+          [
+            Fulma.Select.select [ Select.Option.IsFullWidth  ]
+              [ select [ Value selectedExampleQuery; OnChange (fun event -> dispatch <| SparqlExampleQuerySelected event.Value) ]
+                  ( [ option [ Value "" ]  [ str "" ] ]
+                    @
+                    (
+                      exampleQueries
+                      |> List.map (fun (title, value) -> option [ Value title ]  [ str title ] ) ))
+                      ] ]
+      ]
+  ]
+
 let appView (model : AppModel) (dispatch : AppMsg -> unit) =
     let tabContent =
       match model.ActiveTab with
@@ -56,7 +72,9 @@ let appView (model : AppModel) (dispatch : AppMsg -> unit) =
                     )
           [ h3  [] [ str "Custom SparQL query" ]
             div [ ClassName "form-group" ] <|
-              [ textarea [ Rows 10; Class "form-control"; OnChange (fun e -> dispatch (QueryChanged e.Value)) ; DefaultValue (model.SparqlQuery)] []
+              (exampleQueries model.SelectedExampleSparqlQuery dispatch)
+              @
+              [ textarea [ Rows 10; Class "form-control"; OnChange (fun e -> dispatch (QueryChanged e.Value)) ; Elmish.React.Helpers.valueOrDefault (model.SparqlQuery)] []
               ]
               @
               match model.Services with

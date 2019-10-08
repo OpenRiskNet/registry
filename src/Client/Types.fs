@@ -62,7 +62,8 @@ type AppModel =
       ExternalServiceTextFieldContent: string
       ExternalServiceListTextFieldContent: string
       SelectedSparqlService: string
-      LoginInfo: LoginInfo }
+      LoginInfo: LoginInfo
+      SelectedExampleSparqlQuery : string }
 
 type Model =
     | Authenticating
@@ -87,6 +88,7 @@ type AppMsg =
     | AddExternalServiceListRequestCompleted of Result<Response, exn>
     | RemoveExternalServiceListRequestCompleted of Result<Response, exn>
     | SparqlSerivceSelected of string
+    | SparqlExampleQuerySelected of string
 
 type Msg =
     | AppMessage of AppMsg
