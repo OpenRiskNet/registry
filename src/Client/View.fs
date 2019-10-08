@@ -10,6 +10,10 @@ open Orn.Registry.Shared
 open Fable.FontAwesome
 
 open Orn.Registry.Client.Types
+
+let trashIcon =
+  i [ ClassName "fa fa-trash" ] []
+
 let appView (model : AppModel) (dispatch : AppMsg -> unit) =
     let tabContent =
       match model.ActiveTab with
@@ -92,7 +96,7 @@ let appView (model : AppModel) (dispatch : AppMsg -> unit) =
                         div [ ClassName "row resource-listing__resource" ]
                             [ div [ ClassName "resource__title" ]
                                  [ str service ]
-                              Button.a [ Button.Option.OnClick (fun _ -> dispatch <| RemoveExternalService service ) ] [ Fa.i [ Fa.Solid.Trash ] [] ]
+                              Button.a [ Button.Option.OnClick (fun _ -> dispatch <| RemoveExternalService service ) ] [ trashIcon ]
                             ]
                   )
               let externalServiceListFragments =
@@ -101,7 +105,7 @@ let appView (model : AppModel) (dispatch : AppMsg -> unit) =
                         div [ ClassName "row resource-listing__resource" ]
                             [ div [ ClassName "resource__title" ]
                                  [ str service ]
-                              Button.a [ Button.Option.OnClick (fun _ -> dispatch <| RemoveExternalServiceList service ) ] [ Fa.i [ Fa.Solid.Trash ] [] ]
+                              Button.a [ Button.Option.OnClick (fun _ -> dispatch <| RemoveExternalServiceList service ) ] [ trashIcon ]
                             ]
                   )
               let feedbackMessages =
