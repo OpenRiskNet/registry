@@ -97,7 +97,8 @@ let update (msg: Msg) (model: Model): Model * Cmd<Msg> =
                     | ExternalServiceTextFieldChanged newText ->
                         { appModel with ExternalServiceTextFieldContent = newText }, Cmd.none
                     | AddExternalService ->
-                        appModel, addExternalService appModel.LoginInfo.Token appModel.ExternalServiceTextFieldContent
+                        { appModel with ExternalServiceTextFieldContent = "" }
+                        , addExternalService appModel.LoginInfo.Token appModel.ExternalServiceTextFieldContent
                     | RemoveExternalService service -> appModel, removeExternalService appModel.LoginInfo.Token service
                     | AddExternalServiceRequestCompleted(Ok _) -> appModel, Cmd.none
                     | AddExternalServiceRequestCompleted(Error err) ->
@@ -110,7 +111,8 @@ let update (msg: Msg) (model: Model): Model * Cmd<Msg> =
                     | ExternalServiceListTextFieldChanged newText ->
                         { appModel with ExternalServiceListTextFieldContent = newText }, Cmd.none
                     | AddExternalServiceList ->
-                        appModel, addExternalServiceList appModel.LoginInfo.Token appModel.ExternalServiceListTextFieldContent
+                        { appModel with ExternalServiceListTextFieldContent = "" }
+                        , addExternalServiceList appModel.LoginInfo.Token appModel.ExternalServiceListTextFieldContent
                     | RemoveExternalServiceList list -> appModel, removeExternalServiceList appModel.LoginInfo.Token list
                     | AddExternalServiceListRequestCompleted(Ok _) -> appModel, Cmd.none
                     | AddExternalServiceListRequestCompleted(Error err) ->
