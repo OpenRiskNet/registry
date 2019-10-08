@@ -12,12 +12,16 @@ open Orn.Registry.Shared
 let mutable ExternalServices = Set.empty<string>
 let mutable ExternalServiceLists = Set.empty<string>
 
-let getCurrentServices (logger: ILogger) email: Async<Shared.ActiveServices> =
+let getCurrentServices (isDevMode : bool) (logger: ILogger) email: Async<Shared.ActiveServices> =
     async {
 
         logger.LogInformation "Entered getCurrentServices"
 
-        let k8sServices = k8sUpdateAgent.ReadonlyState
+        let k8sServices =
+            match k8sUpdateAgent, isDevMode with
+            | Ok agent, _ -> agent.ReadonlyState
+            | Error _, true -> Set.empty
+            | Error err, false -> failwith "Kubernetes Agent could not be initialized"
 
         let ornServices = openApiServicesAgent.ReadonlyState
 

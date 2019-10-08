@@ -38,7 +38,9 @@ let webApp =
 
 let buildConfig (config: IConfigurationBuilder) =
     config.SetBasePath(System.IO.Directory.GetCurrentDirectory())
-          .AddYamlFile("appsettings.yaml", optional = false, reloadOnChange = true).AddEnvironmentVariables() |> ignore
+          .AddYamlFile("appsettings.yaml", optional = false, reloadOnChange = true)
+          .AddYamlFile("appsettings.user.yaml", optional = true, reloadOnChange = true)
+          .AddEnvironmentVariables() |> ignore
 
 let configureApp (app: IApplicationBuilder) =
     app.UseDefaultFiles().UseStaticFiles().UseForwardedHeaders().UseAuthentication().UseGiraffe webApp

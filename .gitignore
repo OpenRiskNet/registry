@@ -13,3 +13,4 @@ release.sh
 *.DotSettings.user
 deploy
 symbolCache.db
+**appsettings.user.yaml

@@ -42,7 +42,9 @@ let getCurrentServicesHandler email: HttpHandler =
     fun next (ctx: Http.HttpContext) ->
         task {
             let logger = ctx.GetLogger()
-            let! services = getCurrentServices logger email
+            let config = ctx.GetService<Microsoft.Extensions.Configuration.IConfiguration>()
+            let isDevMode = bool.TryParse config.["DevMode"] |> function | true, v -> v | false, _ -> false
+            let! services = getCurrentServices isDevMode logger email
             return! Successful.ok (json services) next ctx
         }
 
