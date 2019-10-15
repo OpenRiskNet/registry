@@ -68,4 +68,4 @@ let removeExternalServiceList token list =
           Fetch.requestHeaders [ authHeader token ] ] (Ok >> AddExternalServiceRequestCompleted)
         (Error >> AddExternalServiceRequestCompleted)
 
-let sleep = Cmd.ofPromise (fun _ -> Fable.PowerPack.Promise.sleep 20000) () (fun _ -> Awake) (fun _ -> Awake)
+let sleep = Cmd.ofPromise (fun _ -> Fable.PowerPack.Promise.sleep 7000) () (fun _ -> Awake) (fun _ -> Awake)
