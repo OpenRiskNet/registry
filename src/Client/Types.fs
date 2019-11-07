@@ -116,8 +116,8 @@ WHERE {
 LIMIT 100"""
       "Select all endpoints that at some point below then use the CHEMINF_000018 term (smiles)"
       , """PREFIX orn: <http://openrisknet.org/schema#>
-SELECT * { ?s1 <orn:paths> ?o1 .
-?o1 (<orn:blank>|!<orn:blank>)* ?o2 .
+SELECT * { ?s1 orn:paths ?o1 .
+?o1 (orn:blank|!orn:blank)* ?o2 .
 ?o2 <http://semanticscience.org/resource/CHEMINF_000018> ?o}"""
 
     ]
