@@ -15,6 +15,10 @@ open Orn.Registry.Client.Types
 let trashIcon =
   i [ ClassName "fa fa-trash" ] []
 
+let spinnerIcon =
+  i [ ClassName "fas fa-circle-notch fa-3x fa-spin" ] [ ]
+
+
 let exampleQueries (selectedExampleQuery : string) dispatch =
   [ Fulma.Columns.columns []
       [ Fulma.Column.column [ Column.Option.Width(Screen.All, Column.IsOneFifth) ] [ label [] [ str "Load example query:" ] ]
@@ -37,8 +41,10 @@ let appView (model : AppModel) (dispatch : AppMsg -> unit) =
       | SparqlQueryTab ->
           let results =
             match model.SparqlResults with
-            | None -> []
-            | Some results ->
+            | NotRequested -> []
+            | InFlight -> [ spinnerIcon ]
+            | Failed err -> [ div [] [ str err ]]
+            | Success results ->
                 results
                 |> Array.toList
                 |> List.collect (fun result ->
@@ -78,9 +84,10 @@ let appView (model : AppModel) (dispatch : AppMsg -> unit) =
               ]
               @
               match model.Services with
-              | ServicesLoading -> []
-              | ServicesError err -> [ ]
-              | Services {ExternalOrnServices = externalServices; OrnServices = ornServices; Messages = messages } ->
+              | NotRequested -> []
+              | InFlight -> [ spinnerIcon ]
+              | Failed err -> [ div [] [ str err] ]
+              | Success {ExternalOrnServices = externalServices; OrnServices = ornServices; Messages = messages } ->
                 [ Fulma.Columns.columns []
                     [ Fulma.Column.column [ Column.Option.Width(Screen.All, Column.IsOneThird) ] [ label [] [ str "Query only this service (optional): " ] ]
                       Fulma.Column.column []
@@ -106,9 +113,10 @@ let appView (model : AppModel) (dispatch : AppMsg -> unit) =
           @ (if List.isEmpty results then [  str "No results" ] else results)
       | ExternalServices ->
           match model.Services with
-          | ServicesLoading -> [ p [] [str "Loading ..."] ]
-          | ServicesError err -> [ p [] [str ("Error loading services: " + err)] ]
-          | Services {ExternalServices = externalServices; ExternalServiceLists = externalServiceLists; Messages = messages } ->
+          | NotRequested -> []
+          | InFlight -> [ spinnerIcon ]
+          | Failed err -> [ p [] [str ("Error loading services: " + err)] ]
+          | Success {ExternalServices = externalServices; ExternalServiceLists = externalServiceLists; Messages = messages } ->
               let externalServiceFragments =
                   externalServices
                   |> List.map (fun service ->
@@ -190,9 +198,10 @@ let appView (model : AppModel) (dispatch : AppMsg -> unit) =
               ]
       | ServicesTab ->
           match model.Services with
-          | ServicesLoading -> [ p [] [str "Loading ..."] ]
-          | ServicesError err -> [ p [] [str ("Error loading services: " + err)] ]
-          | Services {PlainK8sServices = k8sServices; OrnServices = ornServices; ExternalOrnServices = externalServices; ExternalServiceLists = externalServiceLists; Messages = messages} ->
+          | NotRequested -> []
+          | InFlight -> [ spinnerIcon ]
+          | Failed err -> [ p [] [str ("Error loading services: " + err)] ]
+          | Success {PlainK8sServices = k8sServices; OrnServices = ornServices; ExternalOrnServices = externalServices; ExternalServiceLists = externalServiceLists; Messages = messages} ->
               // TODO: render external services
               let plainK8sFragments =
                   k8sServices

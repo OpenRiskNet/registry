@@ -23,15 +23,11 @@ type OntologySearchTerm =
       OntologyTerm: string option
       TermSuggestions: string list }
 
-type SearchStatus =
-    | NotStarted
-    | Loading
-    | Results of Shared.ServiceSqarqlQueryResult list
-
-type ServiceList =
-    | ServicesLoading
-    | ServicesError of string
-    | Services of Shared.ActiveServices
+type LoadingStatus<'success, 'error> =
+    | NotRequested
+    | InFlight
+    | Success of 'success
+    | Failed of 'error
 
 type ActiveTab =
     | ServicesTab
@@ -53,11 +49,11 @@ type LoginInfo =
       UserId: string }
 
 type AppModel =
-    { Services: ServiceList
+    { Services: LoadingStatus<Shared.ActiveServices, string>
       InputSearchTerm: OntologySearchTerm
       OutputSearchTerm: OntologySearchTerm
       SparqlQuery: string
-      SparqlResults: SparqlResultsForServices option
+      SparqlResults: LoadingStatus<SparqlResultsForServices, string>
       ActiveTab: ActiveTab
       ExternalServiceTextFieldContent: string
       ExternalServiceListTextFieldContent: string

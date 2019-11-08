@@ -24,7 +24,7 @@ let ornServicesTestValues =
               RetrievedAt = System.DateTimeOffset.UtcNow } } ]
 
 let testServices =
-    Services
+    Success
         { PlainK8sServices = []
           OrnServices = ornServicesTestValues
           ExternalOrnServices = []
@@ -63,14 +63,14 @@ let update (msg: Msg) (model: Model): Model * Cmd<Msg> =
             | LoggedIn appModel ->
                 let newAppModel, cmd =
                     match appmsg with
-                    | Refresh(Ok services) -> { appModel with Services = Services services }, sleep
-                    | Refresh(Error err) -> { appModel with Services = ServicesError(err.ToString()) }, sleep
-                    | SparqlQueryFinished(Ok results) -> { appModel with SparqlResults = Some results }, Cmd.none
+                    | Refresh(Ok services) -> { appModel with Services = Success services }, sleep
+                    | Refresh(Error err) -> { appModel with Services = Failed(err.ToString()) }, sleep
+                    | SparqlQueryFinished(Ok results) -> { appModel with SparqlResults = Success results }, Cmd.none
                     | SparqlQueryFinished(Error err) ->
                         JS.console.log ("Error when running sparql query!", [ err ])
-                        { appModel with SparqlResults = None }, Cmd.none
+                        { appModel with SparqlResults = Failed(err.ToString()) }, Cmd.none
                     | RunSparqlQuery ->
-                        { appModel with SparqlResults = None },
+                        { appModel with SparqlResults = InFlight },
                         runSparqlQuery appModel.SelectedSparqlService appModel.SparqlQuery
                     | QueryChanged query ->
                         JS.console.log ("Query updated", [ query ])
@@ -111,14 +111,14 @@ let update (msg: Msg) (model: Model): Model * Cmd<Msg> =
                         { appModel with
                             SelectedExampleSparqlQuery = newKey
                             SparqlQuery = exampleQueries |> List.find (fun (key, value) -> key = newKey) |> snd
-                            SparqlResults = None }, Cmd.none
+                            SparqlResults = NotRequested }, Cmd.none
                 LoggedIn newAppModel, Cmd.map AppMessage cmd
         | KeycloakInit(Ok loginInfo) ->
             let localDebugMode = false
 
             let initialServices, initialCommand, initialResults =
-                if localDebugMode then testServices, Cmd.none, Some testSparqlResult
-                else ServicesLoading, refresh loginInfo.Token, None
+                if localDebugMode then testServices, Cmd.none, Success testSparqlResult
+                else InFlight, refresh loginInfo.Token, NotRequested
 
             let newappModel =
                 { Services = initialServices
