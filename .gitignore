@@ -14,3 +14,4 @@ release.sh
 deploy
 symbolCache.db
 **appsettings.user.yaml
+.paket/load/

@@ -24,9 +24,8 @@ let DereferenceOpenApi(openapiDocument: Microsoft.OpenApi.Models.OpenApiDocument
 let ParseAndDereferenceOpenApi(OpenApiRaw openApiYaml) =
     let openApiAsBytes = System.Text.Encoding.UTF8.GetBytes(openApiYaml)
     use stream = new MemoryStream(openApiAsBytes)
-    let diagnostics = OpenApiDiagnostic()
     let reader = OpenApiStreamReader()
-    let openapi = reader.Read(stream, ref diagnostics)
+    let openapi, diagnostics = reader.Read(stream)
     if Seq.isEmpty diagnostics.Errors then
         let validator = OpenApiValidator(Microsoft.OpenApi.Validations.ValidationRuleSet.GetDefaultRuleSet())
         validator.Visit(openapi)
