@@ -10,15 +10,13 @@ open Microsoft.OpenApi.Writers
 open Microsoft.OpenApi.Services
 open Microsoft.OpenApi.Validations
 open System.Text
-open OrnQueryTester.DereferencingVisitor
+open Orn.Registry.OpenApiDereferenceLogic
 open Orn.Registry.BasicTypes
 open Orn.Registry
 open Orn.Registry.Shared
 
 let DereferenceOpenApi(openapiDocument: Microsoft.OpenApi.Models.OpenApiDocument): Microsoft.OpenApi.Models.OpenApiDocument =
-    let visitor = DereferencingVisitor(openapiDocument.Components)
-    let walker = OpenApiWalker(visitor)
-    walker.Walk(openapiDocument)
+    dereferenceOpenApi openapiDocument
     openapiDocument
 
 let ParseAndDereferenceOpenApi(OpenApiRaw openApiYaml) =

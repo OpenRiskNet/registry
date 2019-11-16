@@ -11,7 +11,7 @@
     <Compile Include="IAgent.fs" />
     <Compile Include="AgentLoadBalancingAgent.fs" />
     <Compile Include="FeedbackAgent.fs" />
-    <Compile Include="DereferencingVisitor.fs" />
+    <Compile Include="OpenApiDereferenceLogic.fs" />
     <Compile Include="OpenApiTransformer.fs" />
     <Compile Include="JsonLdParsing.fs" />
     <Compile Include="OpenApiServicesAgent.fs" />
