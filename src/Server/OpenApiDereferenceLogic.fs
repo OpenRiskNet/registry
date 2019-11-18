@@ -176,8 +176,11 @@ let private dereferenceTopLevelSchema (fullyDereferencedSchemas : #IDictionary<s
   if isNull target.Reference then
     dereferenceRecusively fullyDereferencedSchemas target
   else
-    let schemaFromComponents = allSchemas.[target.Reference.Id]
-    copyFromReference target schemaFromComponents
+    let schemaFound, schemaFromFullyDereferenced = fullyDereferencedSchemas.TryGetValue target.Reference.Id
+    if schemaFound then
+        copyFromReference target schemaFromFullyDereferenced
+    else
+        ()
 
 let private dereferenceParameters (fullyDereferenced : #IDictionary<string, OpenApiSchema>) (components : OpenApiComponents) (parameters : IList<OpenApiParameter>) =
     for parameter in parameters do
@@ -188,15 +191,19 @@ let private dereferenceParameters (fullyDereferenced : #IDictionary<string, Open
 let private dereferenceRequestBody (fullyDereferenced : #IDictionary<string, OpenApiSchema>) (components : OpenApiComponents) (requestBody : OpenApiRequestBody) =
     if not (isNull requestBody.Reference) then
         copyFromRequestBodyReference requestBody (components.RequestBodies.[requestBody.Reference.Id])
-    for mediaType in requestBody.Content.Values do
-        dereferenceTopLevelSchema fullyDereferenced (components.Schemas) mediaType.Schema
+    if not (isNull requestBody.Content) && not (isNull requestBody.Content.Values) then
+        for mediaType in requestBody.Content.Values do
+            if not (isNull mediaType) then
+                dereferenceTopLevelSchema fullyDereferenced (components.Schemas) mediaType.Schema
 
 let private dereferenceResponses (fullyDereferenced : #IDictionary<string, OpenApiSchema>) (components : OpenApiComponents) (responses : OpenApiResponses) =
     for response in responses.Values do
         if not (isNull response.Reference) then
             copyFromResponseReference response (components.Responses.[response.Reference.Id])
-        for mediaType in response.Content.Values do
-            dereferenceTopLevelSchema fullyDereferenced components.Schemas mediaType.Schema
+        if not (isNull response.Content) && not (isNull response.Content.Values) then
+            for mediaType in response.Content.Values do
+                if not (isNull mediaType) then
+                    dereferenceTopLevelSchema fullyDereferenced components.Schemas mediaType.Schema
 
 let dereferenceOpenApi (openapi : OpenApiDocument) =
     let fullyDereferenced = dereferenceComponentSchemas openapi.Components
@@ -213,5 +220,6 @@ let dereferenceOpenApi (openapi : OpenApiDocument) =
         dereferenceParameters fullyDereferenced openapi.Components path.Parameters
         for operation in path.Operations.Values do
             dereferenceParameters fullyDereferenced openapi.Components operation.Parameters
-            dereferenceRequestBody fullyDereferenced openapi.Components operation.RequestBody
+            if not (isNull operation.RequestBody) then
+                dereferenceRequestBody fullyDereferenced openapi.Components operation.RequestBody
             dereferenceResponses fullyDereferenced openapi.Components operation.Responses
