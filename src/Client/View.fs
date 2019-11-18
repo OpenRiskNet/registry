@@ -76,7 +76,7 @@ let appView (model : AppModel) (dispatch : AppMsg -> unit) =
 
 
                     )
-          [ h3  [] [ str "Custom SparQL query" ]
+          [ h3  [] [ str "Custom SPARQL query" ]
             div [ ClassName "form-group" ] <|
               (exampleQueries model.SelectedExampleSparqlQuery dispatch)
               @
