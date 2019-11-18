@@ -176,6 +176,9 @@ let private dereferenceTopLevelSchema (fullyDereferencedSchemas : #IDictionary<s
   if isNull target.Reference then
     dereferenceRecusively fullyDereferencedSchemas target
   else
+    // we could use allSchemas here in theory and thus dereference also the top level of schemas
+    // that are (mutually) recursive schema definitions but the gain is small (only the top level use could be dereferenced)
+    // and the OpenAPI writer implementation seems to have a problem with that that I don't want to investigate further at this point.
     let schemaFound, schemaFromFullyDereferenced = fullyDereferencedSchemas.TryGetValue target.Reference.Id
     if schemaFound then
         copyFromReference target schemaFromFullyDereferenced
