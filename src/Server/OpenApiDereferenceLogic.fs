@@ -137,53 +137,59 @@ let rec private dereferenceRecusively (dereferencedSoFar : #IDictionary<string, 
 
 let private dereferenceComponentSchemas (components : OpenApiComponents) =
     printfn "Collecting dependencies"
-    let mutable componentKeysAndDependencies =
-        components.Schemas.Keys
-        |> Seq.map (fun key -> key, Set.ofSeq <| collectDependencies Root components.Schemas.[key])
-        |> Seq.toArray
+    if not (isNull components) && not (isNull components.Schemas) then
+        let mutable componentKeysAndDependencies =
+            components.Schemas.Keys
+            |> Seq.map (fun key -> key, Set.ofSeq <| collectDependencies Root components.Schemas.[key])
+            |> Seq.toArray
 
-    printfn "Dependencies collected"
-    printfn "%A" componentKeysAndDependencies
-    let fullyDereferenced = new Dictionary<string, OpenApiSchema>()
-    let mutable didWork = true
+        printfn "Dependencies collected"
+        printfn "%A" componentKeysAndDependencies
+        let fullyDereferenced = new Dictionary<string, OpenApiSchema>()
+        let mutable didWork = true
 
-    while didWork do
-        let noFurtherDeps, remainingDeps = componentKeysAndDependencies |> Array.partition (fun (key, deps) -> deps.Count = 0)
+        while didWork do
+            let noFurtherDeps, remainingDeps = componentKeysAndDependencies |> Array.partition (fun (key, deps) -> deps.Count = 0)
 
-        let noFurtherDeps =
-            noFurtherDeps
-            |> Array.map fst
-            |> Set.ofArray
+            let noFurtherDeps =
+                noFurtherDeps
+                |> Array.map fst
+                |> Set.ofArray
 
-        for key in noFurtherDeps do
-            let schemaExists, schema = components.Schemas.TryGetValue key
-            if schemaExists then
-               fullyDereferenced.Add(key, schema)
+            for key in noFurtherDeps do
+                let schemaExists, schema = components.Schemas.TryGetValue key
+                if schemaExists then
+                   fullyDereferenced.Add(key, schema)
 
-        for keyValuePair in components.Schemas do
-            dereferenceRecusively fullyDereferenced keyValuePair.Value
+            for keyValuePair in components.Schemas do
+                dereferenceRecusively fullyDereferenced keyValuePair.Value
 
-        let remainingDeps =
-            remainingDeps
-            |> Array.map (fun (key, deps) -> key, Set.difference deps noFurtherDeps)
+            let remainingDeps =
+                remainingDeps
+                |> Array.map (fun (key, deps) -> key, Set.difference deps noFurtherDeps)
 
-        componentKeysAndDependencies <- remainingDeps
+            componentKeysAndDependencies <- remainingDeps
 
-        didWork <-  noFurtherDeps |> Set.isEmpty |> not
-    fullyDereferenced
+            didWork <-  noFurtherDeps |> Set.isEmpty |> not
+        fullyDereferenced
+    else
+        System.Collections.Generic.Dictionary<string, OpenApiSchema>()
 
 let private dereferenceTopLevelSchema (fullyDereferencedSchemas : #IDictionary<string, OpenApiSchema>) (allSchemas : #IDictionary<string, OpenApiSchema>) (target : OpenApiSchema) =
-  if isNull target.Reference then
-    dereferenceRecusively fullyDereferencedSchemas target
+  if isNull target then
+    ()
   else
-    // we could use allSchemas here in theory and thus dereference also the top level of schemas
-    // that are (mutually) recursive schema definitions but the gain is small (only the top level use could be dereferenced)
-    // and the OpenAPI writer implementation seems to have a problem with that that I don't want to investigate further at this point.
-    let schemaFound, schemaFromFullyDereferenced = fullyDereferencedSchemas.TryGetValue target.Reference.Id
-    if schemaFound then
-        copyFromReference target schemaFromFullyDereferenced
+    if isNull target.Reference then
+        dereferenceRecusively fullyDereferencedSchemas target
     else
-        ()
+        // we could use allSchemas here in theory and thus dereference also the top level of schemas
+        // that are (mutually) recursive schema definitions but the gain is small (only the top level use could be dereferenced)
+        // and the OpenAPI writer implementation seems to have a problem with that that I don't want to investigate further at this point.
+        let schemaFound, schemaFromFullyDereferenced = fullyDereferencedSchemas.TryGetValue target.Reference.Id
+        if schemaFound then
+            copyFromReference target schemaFromFullyDereferenced
+        else
+            ()
 
 let private dereferenceParameters (fullyDereferenced : #IDictionary<string, OpenApiSchema>) (components : OpenApiComponents) (parameters : IList<OpenApiParameter>) =
     for parameter in parameters do
@@ -209,20 +215,23 @@ let private dereferenceResponses (fullyDereferenced : #IDictionary<string, OpenA
                     dereferenceTopLevelSchema fullyDereferenced components.Schemas mediaType.Schema
 
 let dereferenceOpenApi (openapi : OpenApiDocument) =
-    let fullyDereferenced = dereferenceComponentSchemas openapi.Components
+    if isNull openapi.Components then
+        ()
+    else
+        let fullyDereferenced = dereferenceComponentSchemas openapi.Components
 
-    for keyValuePair in openapi.Components.Parameters do
-        dereferenceTopLevelSchema fullyDereferenced (openapi.Components.Schemas) keyValuePair.Value.Schema
-    for keyValuePair in openapi.Components.Responses do
-        for mediaType in keyValuePair.Value.Content.Values do
-            dereferenceTopLevelSchema fullyDereferenced (openapi.Components.Schemas) mediaType.Schema
-    for keyValuePair in openapi.Components.RequestBodies do
-        for mediaType in keyValuePair.Value.Content.Values do
-            dereferenceTopLevelSchema fullyDereferenced (openapi.Components.Schemas) mediaType.Schema
-    for path in openapi.Paths.Values do
-        dereferenceParameters fullyDereferenced openapi.Components path.Parameters
-        for operation in path.Operations.Values do
-            dereferenceParameters fullyDereferenced openapi.Components operation.Parameters
-            if not (isNull operation.RequestBody) then
-                dereferenceRequestBody fullyDereferenced openapi.Components operation.RequestBody
-            dereferenceResponses fullyDereferenced openapi.Components operation.Responses
+        for keyValuePair in openapi.Components.Parameters do
+            dereferenceTopLevelSchema fullyDereferenced (openapi.Components.Schemas) keyValuePair.Value.Schema
+        for keyValuePair in openapi.Components.Responses do
+            for mediaType in keyValuePair.Value.Content.Values do
+                dereferenceTopLevelSchema fullyDereferenced (openapi.Components.Schemas) mediaType.Schema
+        for keyValuePair in openapi.Components.RequestBodies do
+            for mediaType in keyValuePair.Value.Content.Values do
+                dereferenceTopLevelSchema fullyDereferenced (openapi.Components.Schemas) mediaType.Schema
+        for path in openapi.Paths.Values do
+            dereferenceParameters fullyDereferenced openapi.Components path.Parameters
+            for operation in path.Operations.Values do
+                dereferenceParameters fullyDereferenced openapi.Components operation.Parameters
+                if not (isNull operation.RequestBody) then
+                    dereferenceRequestBody fullyDereferenced openapi.Components operation.RequestBody
+                dereferenceResponses fullyDereferenced openapi.Components operation.Responses

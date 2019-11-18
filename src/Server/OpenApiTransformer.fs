@@ -30,8 +30,8 @@ let ParseAndDereferenceOpenApi(OpenApiRaw openApiYaml) =
         if (Seq.isEmpty validator.Errors) then
             let dereferenced = DereferenceOpenApi openapi
             Ok dereferenced
-        else Error(sprintf "%A" validator.Errors)
-    else Error(sprintf "%A" diagnostics.Errors)
+        else Error(sprintf "%s" (String.concat "; " (validator.Errors |> Seq.map (fun err -> err.ToString()))))
+    else Error(sprintf "%s" (String.concat "; " (diagnostics.Errors |> Seq.map (fun err -> err.ToString()))))
 
 let TransformOpenApiToV3Dereferenced retrievedAt openApiUrl openApiString =
     result {

@@ -6,7 +6,7 @@ let filepath = @"C:\Users\danyx\Documents\jaqpot.json"
 let reader = Microsoft.OpenApi.Readers.OpenApiStreamReader()
 let stream = System.IO.File.OpenRead(filepath)
 let openapi, diagnostics = reader.Read(stream)
-let dereferenced = OrnQueryTester.DereferencingVisitor.dereferenceComponentSchemas openapi.Components
+let dereferenced = Orn.Registry.OpenApiDereferenceLogic.dereferenceOpenApi openapi
 printfn "Dereferenced all"
 let outputpath = @"C:\Users\danyx\Documents\jaqpot-dereferenced.json"
 let writer = new System.IO.StreamWriter(outputpath)
