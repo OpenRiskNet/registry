@@ -25,12 +25,12 @@ let ParseAndDereferenceOpenApi(OpenApiRaw openApiYaml) =
     let reader = OpenApiStreamReader()
     let openapi, diagnostics = reader.Read(stream)
     if Seq.isEmpty diagnostics.Errors then
-        let validator = OpenApiValidator(Microsoft.OpenApi.Validations.ValidationRuleSet.GetDefaultRuleSet())
-        validator.Visit(openapi)
-        if (Seq.isEmpty validator.Errors) then
-            let dereferenced = DereferenceOpenApi openapi
-            Ok dereferenced
-        else Error(sprintf "%s" (String.concat "; " (validator.Errors |> Seq.map (fun err -> err.ToString()))))
+        //let validator = OpenApiValidator(Microsoft.OpenApi.Validations.ValidationRuleSet.GetDefaultRuleSet())
+        //validator.Visit(openapi)
+        //if (Seq.isEmpty validator.Errors) then
+        let dereferenced = DereferenceOpenApi openapi
+        Ok dereferenced
+        //else Error(sprintf "%s" (String.concat "; " (validator.Errors |> Seq.map (fun err -> err.ToString()))))
     else Error(sprintf "%s" (String.concat "; " (diagnostics.Errors |> Seq.map (fun err -> err.ToString()))))
 
 let TransformOpenApiToV3Dereferenced retrievedAt openApiUrl openApiString =
