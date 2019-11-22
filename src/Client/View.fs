@@ -35,6 +35,54 @@ let exampleQueries (selectedExampleQuery : string) dispatch =
       ]
   ]
 
+let renderMessages messages =
+  messages
+  |> List.map (fun feedbackMessage ->
+        let truncateUrl (url : string) =
+            if url.Length > 75 then
+                sprintf "%s ... %s" (url.Substring(0, 40)) (url.Substring(url.Length-30, 30))
+            else
+                url
+        let renderUrl (url : string) =
+            p [] [ a [ Href url; Target "_blank"] [str (truncateUrl url) ] ]
+        let renderMainMessage (msg : string) =
+            div [] [ h4 [] [ str msg] ]
+        let renderTimestamp (timestamp : System.DateTime) =
+            div [ ClassName "news-item__date"] [ str (timestamp.ToString()) ]
+        div [ Style [ Margin "1rem" ] ]
+            ( match feedbackMessage.Feedback with
+               | OpenApiDownloadFailed (OpenApiUrl url) ->
+                    [ renderMainMessage "OpenAPI download failed"
+                      renderTimestamp feedbackMessage.Timestamp
+                      renderUrl url
+                      ]
+               | OpenApiParsingFailed (OpenApiUrl url, openapiMessage) ->
+                    [ yield (renderMainMessage "OpenAPI Parsing failed")
+                      yield renderTimestamp feedbackMessage.Timestamp
+                      yield renderUrl url
+                      yield div [] [ str "Messages: "]
+                      yield! (openapiMessage.Split([|'\n'; ';'|]) |> Array.map (fun error -> div [ ClassName "small"  ] [ str error]) |> List.ofArray)
+                    ]
+               | ListDownloadFailed (url) ->
+                    [ renderMainMessage "Downloading or parsing of the list failed"
+                      renderTimestamp feedbackMessage.Timestamp
+                      renderUrl url
+                    ]
+               | JsonLdContextMissing (OpenApiUrl url) ->
+                    [ renderMainMessage "No Json-ld context ('x-orn-@context') could be found"
+                      renderTimestamp feedbackMessage.Timestamp
+                      renderUrl url
+                    ]
+               | JsonLdParsingError (OpenApiUrl url, jsonldMessage) ->
+                    [ yield (renderMainMessage "OpenAPI Parsing failed")
+                      yield renderTimestamp feedbackMessage.Timestamp
+                      yield renderUrl url
+                      yield div [] [ str "Messages: "]
+                      yield! (jsonldMessage.Split([|'\n'; ';'|]) |> Array.map (fun error -> div [ ClassName "small" ] [ str error]) |> List.ofArray)
+                    ]
+            )
+    )
+
 let appView (model : AppModel) (dispatch : AppMsg -> unit) =
     let tabContent =
       match model.ActiveTab with
@@ -135,18 +183,7 @@ let appView (model : AppModel) (dispatch : AppMsg -> unit) =
                               Button.a [ Button.Option.OnClick (fun _ -> dispatch <| RemoveExternalServiceList service.ListUrl ) ] [ trashIcon ]
                             ]
                   )
-              let feedbackMessages =
-                  messages
-                  |> List.map (fun feedbackMessage ->
-                        div [  ]
-                            [( match feedbackMessage.Feedback with
-                               | OpenApiDownloadFailed (OpenApiUrl url) -> str (sprintf "Downloading OpenAPI failed from URL: %s" url)
-                               | OpenApiParsingFailed (OpenApiUrl url, openapiMessage) -> str (sprintf "Parsing OpenAPI failed (from URL: %s) with message: %s" url openapiMessage)
-                               | ListDownloadFailed (url) -> str (sprintf "Downloading or processing of this list failed: %s" url)
-                               | JsonLdContextMissing (OpenApiUrl url) -> str (sprintf "Json-LD context missing in OpenAPI definition at URL: %s" url)
-                               | JsonLdParsingError (OpenApiUrl url, jsonldMessage) -> str (sprintf "Json-LD parsing error (from URL: %s) with message: %s" url jsonldMessage)
-                            )]
-                    )
+              let feedbackMessages = renderMessages messages
 
               [ h3  [] [ str "Add a new external service" ]
                 Fulma.Text.p [ GenericOption.Modifiers [ Fulma.Modifier.TextSize(Screen.All, TextSize.Is7) ] ] [ str "Please beware that external services are not persisted at the moment (i.e. you have to add them again if the registry is restarted)"]
@@ -191,11 +228,6 @@ let appView (model : AppModel) (dispatch : AppMsg -> unit) =
               ]
               @
               externalServiceListFragments
-              @
-              [
-                h3  [] [ str "Recent registry messages: " ]
-                div [] feedbackMessages
-              ]
       | ServicesTab ->
           match model.Services with
           | NotRequested -> []
@@ -256,18 +288,6 @@ let appView (model : AppModel) (dispatch : AppMsg -> unit) =
                             div [ ClassName "row services-listing" ] services
                           ]
                   )
-              let feedbackMessages =
-                  messages
-                  |> List.map (fun feedbackMessage ->
-                        div [  ]
-                            [( match feedbackMessage.Feedback with
-                               | OpenApiDownloadFailed (OpenApiUrl url) -> str (sprintf "Downloading OpenAPI failed from URL: %s" url)
-                               | OpenApiParsingFailed (OpenApiUrl url, openapiMessage) -> str (sprintf "Parsing OpenAPI failed (from URL: %s) with message: %s" url openapiMessage)
-                               | ListDownloadFailed (url) -> str (sprintf "Downloading or processing of this list failed: %s" url)
-                               | JsonLdContextMissing (OpenApiUrl url) -> str (sprintf "Json-LD context missing in OpenAPI definition at URL: %s" url)
-                               | JsonLdParsingError (OpenApiUrl url, jsonldMessage) -> str (sprintf "Json-LD parsing error (from URL: %s) with message: %s" url jsonldMessage)
-                            )]
-                    )
 
               [ h3  [] [ str "OpenRiskNet services running in the VRE" ]
                 div [ ClassName "row services-listing" ] ornServiceFragments
@@ -275,11 +295,16 @@ let appView (model : AppModel) (dispatch : AppMsg -> unit) =
                 div [ ClassName "row services-listing" ] externalServiceFragments
                 h3  [] [ str "External service lists" ]
                 div [] externalServiceListFragments
-                h3  [] [ str "Kubernetes services (debug view)" ]
-                div [] plainK8sFragments
-                h3  [] [ str "Recent registry messages: " ]
-                div [] feedbackMessages
+                // h3  [] [ str "Kubernetes services (debug view)" ]
+                // div [] plainK8sFragments
               ]
+        | DebugMessages ->
+              match model.Services with
+              | NotRequested -> []
+              | InFlight -> [ spinnerIcon ]
+              | Failed err -> [ p [] [str ("Error loading services: " + err)] ]
+              | Success {PlainK8sServices = k8sServices; OrnServices = ornServices; ExternalOrnServices = externalServices; ExternalServiceLists = externalServiceLists; Messages = messages} ->
+                    [ div [] (renderMessages messages) ]
 
     let renderTabs options labelFn activeTab message =
       Tabs.tabs [ ]

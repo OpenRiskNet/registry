@@ -33,14 +33,16 @@ type ActiveTab =
     | ServicesTab
     | SparqlQueryTab
     | ExternalServices
+    | DebugMessages
 
-let AllTabs = [ ServicesTab; SparqlQueryTab; ExternalServices ]
+let AllTabs = [ ServicesTab; SparqlQueryTab; ExternalServices; DebugMessages ]
 
 let tabToLabel =
     function
     | ServicesTab -> "Services"
     | SparqlQueryTab -> "SparQL query"
     | ExternalServices -> "External services"
+    | DebugMessages -> "Error messages"
 
 type AuthToken = AuthToken of string
 
