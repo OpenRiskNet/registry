@@ -76,4 +76,4 @@ let private reindexFailedServicesRefreshAgent =
                 openApiProcessingAgent.Post(IndexNewUrl(key, Some value, reindexInterval))
             | _ -> ())) 60.0<second>
 
-listManagementAgent.Post(ListManagementAgent.AddNewList "https://raw.githubusercontent.com/OpenRiskNet/registry/master/defaultservices.md")
+listManagementAgent.Post(ListManagementAgent.AddNewList "https://raw.githubusercontent.com/OpenRiskNet/registry/master/defaultservices.json")
