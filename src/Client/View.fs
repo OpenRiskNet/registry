@@ -168,19 +168,21 @@ let appView (model : AppModel) (dispatch : AppMsg -> unit) =
               let externalServiceFragments =
                   externalServices
                   |> List.map (fun service ->
-                        div [ ClassName "row resource-listing__resource" ]
-                            [ div [ ClassName "resource__title" ]
+                        div [ ClassName "media" ]
+                            [ Button.a [ Button.Option.OnClick (fun _ -> dispatch <| RemoveExternalService service ) ; Button.Props <| [ Style [ MarginRight "1rem" ] ] ] [ trashIcon ]
+                              div [ ClassName "media-body" ]
                                  [ str service ]
-                              Button.a [ Button.Option.OnClick (fun _ -> dispatch <| RemoveExternalService service ) ] [ trashIcon ]
+
                             ]
                   )
               let externalServiceListFragments =
                   externalServiceLists
                   |> List.map (fun service ->
-                        div [ ClassName "row resource-listing__resource" ]
-                            [ div [ ClassName "resource__title" ]
+                        div [ ClassName "media" ]
+                            [ Button.a [ Button.Option.OnClick (fun _ -> dispatch <| RemoveExternalServiceList service.ListUrl ) ; Button.Props <| [ Style [ MarginRight "1rem" ] ] ] [ trashIcon ]
+                              div [ ClassName "media-body" ]
                                  [ str service.ListUrl ]
-                              Button.a [ Button.Option.OnClick (fun _ -> dispatch <| RemoveExternalServiceList service.ListUrl ) ] [ trashIcon ]
+
                             ]
                   )
               let feedbackMessages = renderMessages messages
