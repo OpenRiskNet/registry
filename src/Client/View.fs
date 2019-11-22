@@ -259,7 +259,8 @@ let appView (model : AppModel) (dispatch : AppMsg -> unit) =
                               ]
                             div [ ClassName "service__description"] [ reactMarkdown [ Source app.Description ] ]
                             br []
-                            div [ ClassName "service__info" ]
+                            div [ ClassName "service__description"] [ str "Endpoints:" ]
+                            div [ ClassName "service__info"; Style [PaddingBottom "4rem"] ]
                               ( app.Endpoints
                                 |> List.map (fun endpoint -> div [ ClassName "service__info-item" ] [ str endpoint ]) )
                             div [ ClassName "service__more-links"]
@@ -293,7 +294,7 @@ let appView (model : AppModel) (dispatch : AppMsg -> unit) =
                 div [ ClassName "row services-listing" ] ornServiceFragments
                 h3  [] [ str "External services with OpenRiskNet annotation" ]
                 div [ ClassName "row services-listing" ] externalServiceFragments
-                h3  [] [ str "External service lists" ]
+                h3  [] [ str "External services with OpenRiskNet annotation from dynamic service lists" ]
                 div [] externalServiceListFragments
                 // h3  [] [ str "Kubernetes services (debug view)" ]
                 // div [] plainK8sFragments
