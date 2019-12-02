@@ -15,23 +15,23 @@ open Orn.Registry.BasicTypes
 open Orn.Registry
 open Orn.Registry.Shared
 
-let DereferenceOpenApi(openapiDocument: Microsoft.OpenApi.Models.OpenApiDocument): Microsoft.OpenApi.Models.OpenApiDocument =
-    dereferenceOpenApi openapiDocument
-    openapiDocument
+let DereferenceOpenApi(openapiDocument: Microsoft.OpenApi.Models.OpenApiDocument): Result<Microsoft.OpenApi.Models.OpenApiDocument, string> =
+    try
+        dereferenceOpenApi openapiDocument
+        Ok openapiDocument
+    with ex -> Error(ex.ToString())
 
 let ParseAndDereferenceOpenApi(OpenApiRaw openApiYaml) =
-    let openApiAsBytes = System.Text.Encoding.UTF8.GetBytes(openApiYaml)
-    use stream = new MemoryStream(openApiAsBytes)
-    let reader = OpenApiStreamReader()
-    let openapi, diagnostics = reader.Read(stream)
-    if Seq.isEmpty diagnostics.Errors then
-        //let validator = OpenApiValidator(Microsoft.OpenApi.Validations.ValidationRuleSet.GetDefaultRuleSet())
-        //validator.Visit(openapi)
-        //if (Seq.isEmpty validator.Errors) then
-        let dereferenced = DereferenceOpenApi openapi
-        Ok dereferenced
-        //else Error(sprintf "%s" (String.concat "; " (validator.Errors |> Seq.map (fun err -> err.ToString()))))
-    else Error(sprintf "%s" (String.concat "; " (diagnostics.Errors |> Seq.map (fun err -> err.ToString()))))
+    result {
+        let openApiAsBytes = System.Text.Encoding.UTF8.GetBytes(openApiYaml)
+        use stream = new MemoryStream(openApiAsBytes)
+        let reader = OpenApiStreamReader()
+        let openapi, diagnostics = reader.Read(stream)
+        if Seq.isEmpty diagnostics.Errors then
+            let! dereferenced = DereferenceOpenApi openapi
+            return dereferenced
+        else return! Error(sprintf "%s" (String.concat "; " (diagnostics.Errors |> Seq.map (fun err -> err.ToString()))))
+    }
 
 let TransformOpenApiToV3Dereferenced retrievedAt openApiUrl openApiString =
     result {
