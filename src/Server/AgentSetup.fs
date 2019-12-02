@@ -61,7 +61,7 @@ let private listsRefreshAgent = createRefreshAgent (fun _ -> listManagementAgent
 
 let private reindexFailedServicesRefreshAgent =
     createRefreshAgent (fun _ ->
-        let mutable reindexingCount = 0
+        printfn "Refreshing services"
         let services = openApiServicesAgent.ReadonlyState
         services
         |> Map.iter (fun key value ->
@@ -69,10 +69,8 @@ let private reindexFailedServicesRefreshAgent =
             | { Status = OpenApiServicesAgent.Indexed _; OpenApiRetrievalInformation = Some retrievalInfo;
                 ReindexInterval = reindexInterval } when (retrievalInfo.RetrievalTime
                                                           + (secondsToTimeSpan reindexInterval)) < System.DateTimeOffset.UtcNow ->
-                reindexingCount <- reindexingCount + 1
                 openApiProcessingAgent.Post(IndexNewUrl(key, Some value, reindexInterval))
             | { Status = OpenApiServicesAgent.Failed _; ReindexInterval = reindexInterval } ->
-                reindexingCount <- reindexingCount + 1
                 openApiProcessingAgent.Post(IndexNewUrl(key, Some value, reindexInterval))
             | _ -> ())) 60.0<second>
 
