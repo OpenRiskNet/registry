@@ -27,7 +27,7 @@ let ParseAndDereferenceOpenApi(OpenApiRaw openApiYaml) =
         use stream = new MemoryStream(openApiAsBytes)
         let reader = OpenApiStreamReader()
         let openapi, diagnostics = reader.Read(stream)
-        if Seq.isEmpty diagnostics.Errors then
+        if not (isNull openapi) then
             let! dereferenced = DereferenceOpenApi openapi
             return dereferenced
         else return! Error(sprintf "%s" (String.concat "; " (diagnostics.Errors |> Seq.map (fun err -> err.ToString()))))
