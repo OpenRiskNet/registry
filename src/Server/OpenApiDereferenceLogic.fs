@@ -192,10 +192,11 @@ let private dereferenceTopLevelSchema (fullyDereferencedSchemas : #IDictionary<s
             ()
 
 let private dereferenceParameters (fullyDereferenced : #IDictionary<string, OpenApiSchema>) (components : OpenApiComponents) (parameters : IList<OpenApiParameter>) =
-    for parameter in parameters do
-        if not (isNull parameter.Reference) then
-            copyFromParameterReference parameter (components.Parameters.[parameter.Reference.Id])
-        dereferenceTopLevelSchema fullyDereferenced (components.Schemas) parameter.Schema
+    if not (isNull parameters) then
+        for parameter in parameters do
+            if not (isNull parameter) && not (isNull parameter.Reference) then
+                copyFromParameterReference parameter (components.Parameters.[parameter.Reference.Id])
+            dereferenceTopLevelSchema fullyDereferenced (components.Schemas) parameter.Schema
 
 let private dereferenceRequestBody (fullyDereferenced : #IDictionary<string, OpenApiSchema>) (components : OpenApiComponents) (requestBody : OpenApiRequestBody) =
     if not (isNull requestBody.Reference) then
